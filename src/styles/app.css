@@ -1,0 +1,28 @@
+body {
+  margin: 0;
+  font-family: "Poppins", ui-sans-serif, system-ui, sans-serif;
+  background: #F5F3EE;
+  color: #1B2447;
+}
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+a {
+  color: var(--brill-blue);
+  text-decoration: none;
+}
+a:hover {
+  color: var(--brill-blue-700);
+  text-decoration: underline;
+}
+button {
+  font: inherit;
+}
+::-webkit-scrollbar {
+  height: 10px;
+  width: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--brill-neutral-cool);
+  border-radius: 999px;
+}

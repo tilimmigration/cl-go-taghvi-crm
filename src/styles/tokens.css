@@ -1,0 +1,237 @@
+/* ==========================================================================
+   Brill Media — Color & Type Tokens
+   Sourced directly from Brand Guidelines (PDF, v120225).
+   --------------------------------------------------------------------------
+   Navy is the anchor. Orange drives emphasis and direction. Blue is for
+   action only. Wine is used sparingly for hierarchy contrast. Greys
+   carry layout structure. No hues outside this palette are permitted.
+   ========================================================================== */
+
+/* --- Fonts ----------------------------------------------------------------
+   Brand type is Poppins across the whole system (H1/H2/Body/Caption). Self-
+   hosted files are in /fonts, with a system sans fallback stack.
+   -------------------------------------------------------------------------- */
+@font-face {
+  font-family: "Poppins";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/Poppins-Regular.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Poppins";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/Poppins-Medium.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Poppins";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/Poppins-SemiBold.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Poppins";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/Poppins-Bold.ttf") format("truetype");
+}
+
+:root {
+  /* ============================================================
+     Core palette — exact HEX values from the Brill brand doc
+     ============================================================ */
+
+  /* Primary anchor */
+  --brill-navy:       #1B2447;   /* Primary Navy — core identity color */
+  --brill-white:      #FFFFFF;   /* Interface / negative space */
+
+  /* Neutrals (structure + layouts) */
+  --brill-neutral-warm: #E7DCCE; /* Warm sand — section backgrounds */
+  --brill-neutral-mid:  #DAD9D7; /* Mid grey — dividers / subtle fills */
+  --brill-neutral-cool: #BCC8CB; /* Cool grey-blue — borders / muted UI */
+
+  /* Accents */
+  --brill-orange:     #E89147;   /* Accent Orange — emphasis, direction */
+  --brill-blue:       #3A8ECD;   /* CTA Blue — action items ONLY */
+  --brill-wine:       #98424F;   /* Wine — hierarchy contrast, limited */
+
+  /* Tints derived from the core palette (oklch) for surfaces + states */
+  --brill-navy-900:   #11193A;                          /* pressed / darkest */
+  --brill-navy-700:   #1A294E;                          /* hover on navy */
+  --brill-navy-500:   #1B2447;                          /* same as --brill-navy */
+  --brill-navy-300:   #62728F;                          /* muted navy text */
+  --brill-navy-100:   #E2E8F2;                          /* navy-tinted fills */
+
+  --brill-orange-700: #C56C21;                          /* hover */
+  --brill-orange-500: #E89147;
+  --brill-orange-300: #F5C299;                          /* badge backgrounds */
+  --brill-orange-100: #FEEFE1;                          /* highlight fills */
+
+  --brill-blue-700:   #0079B5;                          /* hover on CTA blue */
+  --brill-blue-500:   #3A8ECD;
+  --brill-blue-100:   #E3F1FB;                          /* subtle blue bg */
+
+  --brill-wine-500:   #98424F;
+  --brill-wine-100:   #F8E6E7;
+
+  /* ============================================================
+     Semantic tokens — what product/ui code should actually use
+     ============================================================ */
+
+  /* Surfaces */
+  --surface-page:       var(--brill-white);             /* default page bg */
+  --surface-raised:     var(--brill-white);             /* cards, menus */
+  --surface-sunken:     var(--brill-neutral-warm);      /* feature sections */
+  --surface-muted:      #F5F3EE;                        /* very soft sand */
+  --surface-inverse:    var(--brill-navy);              /* dark sections */
+  --surface-inverse-2:  var(--brill-navy-900);          /* deeper dark */
+
+  /* Foreground / text */
+  --fg-1:  var(--brill-navy);                           /* primary text */
+  --fg-2:  #384258;                                     /* secondary text */
+  --fg-3:  #6B727E;                                     /* tertiary / meta */
+  --fg-on-dark-1: var(--brill-white);                   /* primary on navy */
+  --fg-on-dark-2: #BCC5D1;                              /* secondary on navy */
+  --fg-on-dark-3: #8390A2;                              /* muted on navy */
+  --fg-accent: var(--brill-orange);                     /* directional emphasis */
+  --fg-link:   var(--brill-blue);
+
+  /* Borders + dividers */
+  --border-subtle: #E6E8EB;
+  --border-default: var(--brill-neutral-cool);
+  --border-strong: var(--brill-navy);
+
+  /* Signal / state — (brand forbids adding new hues; these reuse palette) */
+  --signal-action:   var(--brill-blue);    /* buttons, links, CTAs */
+  --signal-accent:   var(--brill-orange);  /* highlights, arrows, KPIs */
+  --signal-contrast: var(--brill-wine);    /* hierarchy contrast only */
+
+  /* Shadows — subtle, business-clean; navy-tinted rather than pure black */
+  --shadow-xs: 0 1px 2px rgba(27, 36, 71, 0.06);
+  --shadow-sm: 0 2px 6px rgba(27, 36, 71, 0.08);
+  --shadow-md: 0 8px 24px -8px rgba(27, 36, 71, 0.14);
+  --shadow-lg: 0 24px 48px -16px rgba(27, 36, 71, 0.22);
+  --shadow-inset: inset 0 0 0 1px rgba(27, 36, 71, 0.06);
+
+  /* Corner radii — geometric, rounded-stroke ends feel */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-pill: 999px;
+
+  /* Spacing — 4pt base, used for padding, gaps, inset rhythm */
+  --space-0: 0;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+  --space-9: 96px;
+  --space-10: 128px;
+
+  /* Motion — operational, calm. No bounces. */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.2, 0, 0.2, 1);
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 320ms;
+
+  /* ============================================================
+     Typography tokens
+     ============================================================ */
+  --font-sans: "Poppins", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+               Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Per brand doc:  H1 Bold 40/1.4, H2 SemiBold 28/1.4,
+                      Body Regular 18/1.4, Caption Medium 14/1.5 */
+  --type-h1-size:     40px;
+  --type-h1-weight:   700;
+  --type-h1-line:     1.4;
+
+  --type-h2-size:     28px;
+  --type-h2-weight:   600;
+  --type-h2-line:     1.4;
+
+  /* Extensions (scaled within the brand rhythm) */
+  --type-display-size: 64px;
+  --type-display-weight: 700;
+  --type-display-line: 1.12;
+
+  --type-h3-size:     22px;
+  --type-h3-weight:   600;
+  --type-h3-line:     1.35;
+
+  --type-h4-size:     18px;
+  --type-h4-weight:   600;
+  --type-h4-line:     1.35;
+
+  --type-body-size:   18px;
+  --type-body-weight: 400;
+  --type-body-line:   1.5;
+
+  --type-small-size:  16px;
+  --type-small-weight: 400;
+  --type-small-line:  1.5;
+
+  --type-caption-size: 14px;
+  --type-caption-weight: 500;
+  --type-caption-line: 1.5;
+
+  --type-overline-size: 12px;
+  --type-overline-weight: 600;
+  --type-overline-line: 1.3;
+  --type-overline-tracking: 0.08em;
+}
+
+/* --- Element defaults — opt-in by importing this file --------------------- */
+.brill-type, .brill-type *, body.brill {
+  font-family: var(--font-sans);
+  color: var(--fg-1);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.brill-h1, h1.brill {
+  font: var(--type-h1-weight) var(--type-h1-size)/var(--type-h1-line) var(--font-sans);
+  letter-spacing: -0.01em;
+  color: var(--fg-1);
+}
+.brill-display {
+  font: var(--type-display-weight) var(--type-display-size)/var(--type-display-line) var(--font-sans);
+  letter-spacing: -0.02em;
+  color: var(--fg-1);
+}
+.brill-h2, h2.brill {
+  font: var(--type-h2-weight) var(--type-h2-size)/var(--type-h2-line) var(--font-sans);
+  letter-spacing: -0.005em;
+  color: var(--fg-1);
+}
+.brill-h3, h3.brill {
+  font: var(--type-h3-weight) var(--type-h3-size)/var(--type-h3-line) var(--font-sans);
+  color: var(--fg-1);
+}
+.brill-body, p.brill {
+  font: var(--type-body-weight) var(--type-body-size)/var(--type-body-line) var(--font-sans);
+  color: var(--fg-2);
+}
+.brill-small { font: var(--type-small-weight) var(--type-small-size)/var(--type-small-line) var(--font-sans); color: var(--fg-2); }
+.brill-caption { font: var(--type-caption-weight) var(--type-caption-size)/var(--type-caption-line) var(--font-sans); color: var(--fg-3); }
+.brill-overline {
+  font: var(--type-overline-weight) var(--type-overline-size)/var(--type-overline-line) var(--font-sans);
+  letter-spacing: var(--type-overline-tracking);
+  text-transform: uppercase;
+  color: var(--brill-orange);
+}
+
+/* Headline casing rule from the brand doc: sentence case, never justify */
+.brill-type h1, .brill-type h2, .brill-type h3, .brill-type h4 { text-align: left; }
