@@ -1,6 +1,7 @@
 import { useState } from "react";
 import Sidebar from "./components/Sidebar.jsx";
 import Header from "./components/Header.jsx";
+import Login from "./views/Login.jsx";
 import Dashboard from "./views/Dashboard.jsx";
 import Pipeline from "./views/Pipeline.jsx";
 import PostCE from "./views/PostCE.jsx";
@@ -16,7 +17,10 @@ const PROPS = {
   showBenchmarkTargets: true,
 };
 
+const AUTH_KEY = "taghavi-crm-authed";
+
 export default function App() {
+  const [authed, setAuthed] = useState(() => sessionStorage.getItem(AUTH_KEY) === "true");
   const [view, setView] = useState("dash");
   const [tf, setTf] = useState("month");
   const [aiTab, setAiTab] = useState("summary");
@@ -27,6 +31,15 @@ export default function App() {
   function openLead(key) {
     setLeadKey(key);
     setView("record");
+  }
+
+  function handleLoginSuccess() {
+    sessionStorage.setItem(AUTH_KEY, "true");
+    setAuthed(true);
+  }
+
+  if (!authed) {
+    return <Login clientName={PROPS.clientName} onSuccess={handleLoginSuccess} />;
   }
 
   return (
