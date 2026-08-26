@@ -38,13 +38,19 @@ export default function App() {
     setAuthed(true);
   }
 
+  function handleLogout() {
+    sessionStorage.removeItem(AUTH_KEY);
+    setAuthed(false);
+    setView("dash");
+  }
+
   if (!authed) {
     return <Login clientName={PROPS.clientName} onSuccess={handleLoginSuccess} />;
   }
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "248px 1fr", minHeight: "100vh", background: "var(--surface-muted)" }}>
-      <Sidebar clientName={PROPS.clientName} view={view} onNavigate={setView} />
+      <Sidebar clientName={PROPS.clientName} view={view} onNavigate={setView} onLogout={handleLogout} />
 
       <main style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
         <Header
