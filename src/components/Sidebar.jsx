@@ -1,6 +1,6 @@
 import { VIEWS, SOURCES } from "../data.js";
 
-export default function Sidebar({ clientName, view, onNavigate }) {
+export default function Sidebar({ clientName, view, onNavigate, onLogout }) {
   return (
     <aside
       style={{
@@ -78,6 +78,24 @@ export default function Sidebar({ clientName, view, onNavigate }) {
           </div>
         ))}
       </div>
+
+      <button
+        type="button"
+        onClick={onLogout}
+        style={{
+          fontFamily: "inherit",
+          fontSize: 13,
+          fontWeight: 600,
+          padding: "10px var(--space-3)",
+          border: "1px solid var(--fg-on-dark-3)",
+          borderRadius: "var(--radius-sm)",
+          cursor: "pointer",
+          background: "transparent",
+          color: "var(--fg-on-dark-2)",
+        }}
+      >
+        Log out
+      </button>
     </aside>
   );
 }
