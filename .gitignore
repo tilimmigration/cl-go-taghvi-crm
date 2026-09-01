@@ -9,3 +9,8 @@ npm-debug.log*
 .env
 .env.*
 !.env.example
+
+# Supabase CLI's local metadata cache (created by `supabase link`/CLI
+# commands) — machine-local, regenerated automatically, never meant to be
+# committed. Contains project linkage details (e.g. a DB pooler URL).
+supabase/.temp/
