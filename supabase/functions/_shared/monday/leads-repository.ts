@@ -12,6 +12,28 @@ import type { NormalizedLead } from "./types.ts";
 const TABLE = "crm_leads";
 
 /**
+ * All monday_item_id values already present for a board, as a Set, fetched
+ * once up front. Used by the bulk importer to classify each item as
+ * created vs. updated without an extra round-trip per item.
+ */
+export async function fetchExistingItemIds(supabase: SupabaseClientLike, boardId: string): Promise<Set<number>> {
+  const { data, error } = await supabase.from(TABLE).select("monday_item_id").eq("monday_board_id", Number(boardId));
+  if (error) throw error;
+  return new Set((data ?? []).map((row: { monday_item_id: number }) => row.monday_item_id));
+}
+
+/** Count of active (non-deleted) leads for a board — used for post-import validation. */
+export async function countActiveLeadsForBoard(supabase: SupabaseClientLike, boardId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from(TABLE)
+    .select("id", { count: "exact", head: true })
+    .eq("monday_board_id", Number(boardId))
+    .eq("is_deleted", false);
+  if (error) throw error;
+  return count ?? 0;
+}
+
+/**
  * Upserts a lead keyed on (monday_board_id, monday_item_id) — the Monday
  * item id is the external identity, NOT the row's uuid. Replaying the
  * same event (or re-fetching+upserting the same item twice) always
@@ -30,14 +52,24 @@ export async function upsertLead(
     monday_group_id: lead.mondayGroupId,
     monday_group_title: lead.mondayGroupTitle,
     name: lead.name,
+    first_name: lead.firstName,
+    last_name: lead.lastName,
     lead_type: lead.leadType,
     lead_source: lead.leadSource,
     status: lead.status,
+    stage: lead.stage,
     owner_name: lead.ownerName,
     owner_monday_user_id: lead.ownerMondayUserId ? Number(lead.ownerMondayUserId) : null,
     email: lead.email,
     phone: lead.phone,
     company: lead.company,
+    website: lead.website,
+    address: lead.address,
+    city: lead.city,
+    state: lead.state,
+    country: lead.country,
+    industry: lead.industry,
+    notes: lead.notes,
     custom_fields: lead.customFields,
     raw_column_values: lead.rawColumnValues,
     monday_created_at: lead.mondayCreatedAt,
