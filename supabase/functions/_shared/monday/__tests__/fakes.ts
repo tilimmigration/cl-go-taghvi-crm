@@ -150,10 +150,14 @@ export function createFakeSupabaseClient(): FakeSupabaseClient {
 export interface FakeMondayClientConfig {
   /** Backs fetchItem() — used by the webhook pipeline, not the bulk importer. */
   items?: Record<string, MondayItem | null | "ERROR">;
-  /** Backs fetchBoardMetadata(). "ERROR" simulates a Monday API failure. */
+  /** Backs fetchBoardMetadata() when only one board is involved in the test. "ERROR" simulates a failure. */
   boardMeta?: MondayBoardMeta | "ERROR";
-  /** Backs fetchAllBoardItems() — each sub-array is one page's items, in order. */
+  /** Backs fetchAllBoardItems() when only one board is involved — each sub-array is one page's items, in order. */
   pages?: MondayItem[][];
+  /** Per-board variant of boardMeta, keyed by board id — takes priority over the flat `boardMeta` when the requested board id has an entry. */
+  boardMetaByBoardId?: Record<string, MondayBoardMeta | "ERROR">;
+  /** Per-board variant of pages, keyed by board id — takes priority over the flat `pages` when the requested board id has an entry. */
+  pagesByBoardId?: Record<string, MondayItem[][]>;
 }
 
 /**
@@ -174,20 +178,21 @@ export function createFakeMondayClient(config: FakeMondayClientConfig): MondayCl
     },
 
     async fetchBoardMetadata(boardId: string): Promise<MondayBoardMeta> {
-      if (config.boardMeta === "ERROR") {
+      const meta = config.boardMetaByBoardId?.[boardId] ?? config.boardMeta;
+      if (meta === "ERROR") {
         throw new Error(`simulated Monday API failure fetching board ${boardId}`);
       }
-      if (!config.boardMeta) {
-        throw new Error("fake Monday client: boardMeta not configured for this test");
+      if (!meta) {
+        throw new Error(`fake Monday client: boardMeta not configured for board ${boardId} in this test`);
       }
-      return config.boardMeta;
+      return meta;
     },
 
     async fetchAllBoardItems(
-      _boardId: string,
+      boardId: string,
       opts: { pageSize?: number; onPage: (page: MondayItemsPage, pageNumber: number) => Promise<void> | void },
     ) {
-      const pages = config.pages ?? [];
+      const pages = config.pagesByBoardId?.[boardId] ?? config.pages ?? [];
       let totalItems = 0;
 
       for (let i = 0; i < pages.length; i++) {

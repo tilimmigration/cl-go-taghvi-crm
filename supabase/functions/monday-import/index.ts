@@ -1,16 +1,24 @@
 // Supabase Edge Function: monday-import
 // Endpoint: /functions/v1/monday-import
 //
-// One-shot bulk import of every Lead from the configured Monday.com
-// Leads board (all groups) into public.crm_leads. Meant to be triggered
-// manually (curl, or Supabase dashboard "Invoke function") by someone
-// with backend access — NOT by the browser, and NOT automatically. Per
-// scope: no webhook, no scheduling, no real-time sync here — this is
-// only the initial/bulk import path.
+// One-shot bulk import from the configured Monday.com boards into their
+// matching CRM tables:
+//   - Leads board (MONDAY_LEADS_BOARD_ID, required)      -> crm_leads
+//   - Call Log Tracker (MONDAY_CALLS_BOARD_ID, optional)  -> crm_calls
+//   - Deals (MONDAY_DEALS_BOARD_ID, optional)             -> crm_deals
+// Calls and Deals are only imported when their board id is configured —
+// omit them and this behaves exactly as before (Leads only). Each import
+// is independent: one board failing doesn't prevent the others from
+// running.
+//
+// Meant to be triggered manually (curl, or Supabase dashboard "Invoke
+// function") by someone with backend access — NOT by the browser, and
+// NOT automatically. Per scope: no webhook, no scheduling, no real-time
+// sync here — this is only the initial/bulk import path.
 //
 // Reuses the exact same client -> mapper -> repository pipeline as the
 // monday-webhook function (see supabase/functions/_shared/monday/), via
-// runLeadImport() in _shared/monday/import.ts.
+// runLeadImport() / runLinkedRecordImport().
 //
 // Protected by requiring the Supabase service_role key as the bearer
 // token — the anon/publishable key (which the browser has) is
@@ -33,7 +41,9 @@ async function getSupabaseClientFactory() {
 
 import { type MondaySyncConfig, loadConfig } from "../_shared/monday/config.ts";
 import { createMondayClient, type MondayClient } from "../_shared/monday/client.ts";
-import { ImportRunFailedError, runLeadImport } from "../_shared/monday/import.ts";
+import { ImportRunFailedError, runLeadImport, type ImportSummary } from "../_shared/monday/import.ts";
+import { runLinkedRecordImport } from "../_shared/monday/linked-record-import.ts";
+import type { LinkedRecordTable } from "../_shared/monday/linked-records-repository.ts";
 
 // deno-lint-ignore no-explicit-any
 type SupabaseClientLike = any;
@@ -49,6 +59,12 @@ export interface HandleImportOverrides {
   config?: MondaySyncConfig;
   supabaseClient?: SupabaseClientLike;
   mondayClient?: MondayClient;
+}
+
+interface TargetError {
+  board: "leads" | "calls" | "deals";
+  error: string;
+  importRunId?: string;
 }
 
 export async function handleImportRequest(req: Request, overrides: HandleImportOverrides = {}): Promise<Response> {
@@ -92,24 +108,56 @@ export async function handleImportRequest(req: Request, overrides: HandleImportO
 
   const mondayClient = overrides.mondayClient ?? createMondayClient({ apiToken: config.mondayApiToken, apiUrl: config.mondayApiUrl });
 
+  const errors: TargetError[] = [];
+  let leads: ImportSummary | null = null;
+  let calls: ImportSummary | null = null;
+  let deals: ImportSummary | null = null;
+
   try {
-    const summary = await runLeadImport({
-      mondayClient,
-      supabase,
-      boardId: config.leadsBoardId,
-      columnIdMapJson: config.columnIdMapJson,
-      pageSize,
-    });
-    return json(summary, 200);
+    leads = await runLeadImport({ mondayClient, supabase, boardId: config.leadsBoardId, columnIdMapJson: config.columnIdMapJson, pageSize });
   } catch (err) {
-    if (err instanceof ImportRunFailedError) {
-      console.error(`monday-import: run ${err.importRunId} failed:`, err.message);
-      return json({ error: err.message, importRunId: err.importRunId }, 500);
-    }
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("monday-import: unexpected failure:", message);
-    return json({ error: message }, 500);
+    errors.push(describeError("leads", err));
   }
+
+  async function importLinked(table: LinkedRecordTable, boardId: string | undefined): Promise<ImportSummary | null> {
+    if (!boardId) return null;
+    try {
+      return await runLinkedRecordImport({
+        mondayClient,
+        supabase,
+        table,
+        boardId,
+        leadsBoardId: config.leadsBoardId,
+        columnIdMapJson: config.columnIdMapJson,
+        pageSize,
+      });
+    } catch (err) {
+      errors.push(describeError(table === "crm_calls" ? "calls" : "deals", err));
+      return null;
+    }
+  }
+
+  calls = await importLinked("crm_calls", config.callsBoardId);
+  deals = await importLinked("crm_deals", config.dealsBoardId);
+
+  const body = {
+    leads,
+    calls,
+    deals,
+    ...(errors.length > 0 ? { errors } : {}),
+  };
+
+  return json(body, errors.length > 0 ? 500 : 200);
+}
+
+function describeError(board: "leads" | "calls" | "deals", err: unknown): TargetError {
+  if (err instanceof ImportRunFailedError) {
+    console.error(`monday-import: [${board}] run ${err.importRunId} failed:`, err.message);
+    return { board, error: err.message, importRunId: err.importRunId };
+  }
+  const message = err instanceof Error ? err.message : String(err);
+  console.error(`monday-import: [${board}] unexpected failure:`, message);
+  return { board, error: message };
 }
 
 if (typeof Deno !== "undefined" && Deno?.serve) {

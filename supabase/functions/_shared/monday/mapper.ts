@@ -78,6 +78,37 @@ function extractPersonUserId(rawValue: string | null): string | null {
   return person?.id != null ? String(person.id) : null;
 }
 
+const RELATED_LEAD_TITLE_HINTS = ["lead", "related lead", "linked lead", "leads"];
+
+/**
+ * Finds a "connect boards" (Monday type `board_relation`) column that
+ * links this item back to a Lead, and returns the first linked item's
+ * Monday id. Used by crm_calls/crm_deals imports — crm_leads itself
+ * never calls this.
+ *
+ * Matching: prefers a column of type `board_relation` whose title hints
+ * at "lead" (resilient to the exact column id being unknown); falls back
+ * to any `board_relation` column at all if none match by title, since a
+ * Call Log Tracker or Deals board realistically only links to one other
+ * board. Returns null if no such column/value exists — a call or deal
+ * with no resolvable link still imports, just without related_lead_id
+ * filled in.
+ */
+export function extractRelatedLeadMondayItemId(item: MondayItem): string | null {
+  const relationColumns = item.column_values.filter((cv) => cv.type === "board_relation");
+  if (relationColumns.length === 0) return null;
+
+  const byTitle = relationColumns.find((cv) => {
+    const title = cv.column?.title?.trim().toLowerCase();
+    return title && RELATED_LEAD_TITLE_HINTS.includes(title);
+  });
+  const column = byTitle ?? relationColumns[0];
+
+  const parsed = safeParseJson(column.value) as { linkedPulseIds?: Array<{ linkedPulseId?: number | string }> } | null;
+  const firstLink = parsed?.linkedPulseIds?.[0]?.linkedPulseId;
+  return firstLink != null ? String(firstLink) : null;
+}
+
 /**
  * Builds a normalized column-id -> field-key map from an optional explicit
  * override JSON (field key -> column id) plus the default title map

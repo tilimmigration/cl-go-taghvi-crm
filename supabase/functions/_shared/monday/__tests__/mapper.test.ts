@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mapMondayItemToLead } from "../mapper.ts";
+import { extractRelatedLeadMondayItemId, mapMondayItemToLead } from "../mapper.ts";
 import { buildMondayItem } from "./fakes.ts";
 
 test("maps well-known columns by title", () => {
@@ -133,4 +133,52 @@ test("every column type is preserved in customFields even when unrecognized", ()
     assert.equal(field.text, `display-${columnTypes[i]}`);
     assert.deepEqual(field.value, { raw: columnTypes[i] });
   }
+});
+
+test("extractRelatedLeadMondayItemId finds a board_relation column titled like 'Lead'", () => {
+  const item = buildMondayItem({
+    id: "101",
+    name: "Call with Ana",
+    column_values: [
+      { id: "notes", text: "Left a voicemail", value: null, type: "long_text", column: { title: "Notes" } },
+      {
+        id: "link",
+        text: "Ana Beltran",
+        value: JSON.stringify({ linkedPulseIds: [{ linkedPulseId: 1 }] }),
+        type: "board_relation",
+        column: { title: "Related Lead" },
+      },
+    ],
+  });
+
+  assert.equal(extractRelatedLeadMondayItemId(item), "1");
+});
+
+test("extractRelatedLeadMondayItemId falls back to any board_relation column if none match the title hints", () => {
+  const item = buildMondayItem({
+    id: "101",
+    name: "Deal",
+    column_values: [
+      {
+        id: "connect",
+        text: "Ana Beltran",
+        value: JSON.stringify({ linkedPulseIds: [{ linkedPulseId: 42 }] }),
+        type: "board_relation",
+        column: { title: "Source Record" },
+      },
+    ],
+  });
+
+  assert.equal(extractRelatedLeadMondayItemId(item), "42");
+});
+
+test("extractRelatedLeadMondayItemId returns null when there's no board_relation column or link value", () => {
+  assert.equal(extractRelatedLeadMondayItemId(buildMondayItem({ id: "1", name: "No link", column_values: [] })), null);
+
+  const emptyLink = buildMondayItem({
+    id: "2",
+    name: "Unlinked",
+    column_values: [{ id: "link", text: "", value: JSON.stringify({ linkedPulseIds: [] }), type: "board_relation", column: { title: "Lead" } }],
+  });
+  assert.equal(extractRelatedLeadMondayItemId(emptyLink), null);
 });
