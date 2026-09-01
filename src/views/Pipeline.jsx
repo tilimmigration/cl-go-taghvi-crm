@@ -1,10 +1,25 @@
+import { useState } from "react";
 import { boardFor, DEDUPE } from "../data.js";
 import { useLeads } from "../hooks/useLeads.js";
 import { leadDisplayName } from "../lib/leads.js";
 
+const LIVE_LEAD_DETAIL_FIELDS = [
+  ["Lead type", "lead_type"],
+  ["Lead source", "lead_source"],
+  ["Stage", "stage"],
+  ["Website", "website"],
+  ["Address", "address"],
+  ["City", "city"],
+  ["State", "state"],
+  ["Country", "country"],
+  ["Industry", "industry"],
+  ["Notes", "notes"],
+];
+
 export default function Pipeline({ showDedupeFlags, onOpenLead }) {
   const board = boardFor(showDedupeFlags);
   const liveLeads = useLeads();
+  const [expandedLeadId, setExpandedLeadId] = useState(null);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-5)" }}>
@@ -178,31 +193,92 @@ export default function Pipeline({ showDedupeFlags, onOpenLead }) {
 
         {liveLeads.status === "ready" && liveLeads.leads.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
-            {liveLeads.leads.map((lead) => (
-              <div
-                key={lead.id}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1.2fr 1.4fr 1fr 1fr",
-                  gap: "var(--space-4)",
-                  alignItems: "center",
-                  padding: "var(--space-4)",
-                  borderRadius: "var(--radius-sm)",
-                  background: "var(--surface-muted)",
-                }}
-              >
-                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                  <span style={{ fontSize: 15, fontWeight: 600 }}>{leadDisplayName(lead)}</span>
-                  <span style={{ fontSize: 12, color: "var(--fg-3)" }}>{lead.company || "—"}</span>
+            {liveLeads.leads.map((lead) => {
+              const expanded = expandedLeadId === lead.id;
+              const customFieldEntries = Object.entries(lead.custom_fields || {});
+
+              return (
+                <div key={lead.id} style={{ display: "flex", flexDirection: "column" }}>
+                  <button
+                    type="button"
+                    onClick={() => setExpandedLeadId(expanded ? null : lead.id)}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1.2fr 1.4fr 1fr 1fr",
+                      gap: "var(--space-4)",
+                      alignItems: "center",
+                      padding: "var(--space-4)",
+                      borderRadius: expanded ? "var(--radius-sm) var(--radius-sm) 0 0" : "var(--radius-sm)",
+                      background: "var(--surface-muted)",
+                      border: 0,
+                      fontFamily: "inherit",
+                      textAlign: "left",
+                      cursor: "pointer",
+                      width: "100%",
+                    }}
+                  >
+                    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                      <span style={{ fontSize: 15, fontWeight: 600 }}>{leadDisplayName(lead)}</span>
+                      <span style={{ fontSize: 12, color: "var(--fg-3)" }}>{lead.company || "—"}</span>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                      <span style={{ fontSize: 13, color: "var(--fg-2)" }}>{lead.email || "—"}</span>
+                      <span style={{ fontSize: 12, color: "var(--fg-3)" }}>{lead.phone || "—"}</span>
+                    </div>
+                    <span style={{ fontSize: 13, color: "var(--fg-2)" }}>{lead.status || lead.stage || "—"}</span>
+                    <span style={{ fontSize: 13, color: "var(--fg-2)" }}>{lead.owner_name || "Unassigned"}</span>
+                  </button>
+
+                  {expanded && (
+                    <div
+                      style={{
+                        padding: "var(--space-4)",
+                        borderRadius: "0 0 var(--radius-sm) var(--radius-sm)",
+                        background: "var(--surface-raised)",
+                        border: "1px solid var(--border-subtle)",
+                        borderTop: 0,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "var(--space-3)",
+                      }}
+                    >
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: "var(--space-3) var(--space-4)" }}>
+                        {LIVE_LEAD_DETAIL_FIELDS.map(([label, key]) =>
+                          lead[key] ? (
+                            <div key={key} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                              <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--fg-3)" }}>
+                                {label}
+                              </span>
+                              <span style={{ fontSize: 13, color: "var(--fg-2)" }}>{lead[key]}</span>
+                            </div>
+                          ) : null,
+                        )}
+                      </div>
+
+                      {customFieldEntries.length > 0 && (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", paddingTop: "var(--space-2)", borderTop: "1px solid var(--border-subtle)" }}>
+                          <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--fg-3)" }}>
+                            Custom fields (from Monday)
+                          </span>
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: "var(--space-3) var(--space-4)" }}>
+                            {customFieldEntries.map(([columnId, field]) => (
+                              <div key={columnId} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                                <span style={{ fontSize: 11, fontWeight: 600, color: "var(--fg-3)" }}>{field?.title || columnId}</span>
+                                <span style={{ fontSize: 13, color: "var(--fg-2)" }}>{field?.text || "—"}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <span style={{ fontSize: 11, color: "var(--fg-3)" }}>
+                        Monday item {lead.monday_item_id} · board {lead.monday_board_id}
+                      </span>
+                    </div>
+                  )}
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                  <span style={{ fontSize: 13, color: "var(--fg-2)" }}>{lead.email || "—"}</span>
-                  <span style={{ fontSize: 12, color: "var(--fg-3)" }}>{lead.phone || "—"}</span>
-                </div>
-                <span style={{ fontSize: 13, color: "var(--fg-2)" }}>{lead.status || lead.stage || "—"}</span>
-                <span style={{ fontSize: 13, color: "var(--fg-2)" }}>{lead.owner_name || "Unassigned"}</span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>

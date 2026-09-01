@@ -5,14 +5,14 @@ import { buildMondayItem, createFakeMondayClient, createFakeSupabaseClient } fro
 
 test("syncItemFromMonday fetches, transforms and upserts the full item", async () => {
   const supabase = createFakeSupabaseClient();
-  const mondayClient = createFakeMondayClient({
+  const mondayClient = createFakeMondayClient({ items: {
     "555": buildMondayItem({
       id: "555",
       name: "Ana Beltran",
       board: { id: "111222333" },
       column_values: [{ id: "status", text: "New lead", value: null, column: { title: "Status" } }],
     }),
-  });
+  } });
 
   const row = await syncItemFromMonday({ mondayClient, supabase }, "111222333", "555", "create_item");
 
@@ -23,7 +23,7 @@ test("syncItemFromMonday fetches, transforms and upserts the full item", async (
 
 test("syncItemFromMonday throws ItemNotFoundError when the item can't be fetched", async () => {
   const supabase = createFakeSupabaseClient();
-  const mondayClient = createFakeMondayClient({ "555": null });
+  const mondayClient = createFakeMondayClient({ items: { "555": null } });
 
   await assert.rejects(
     () => syncItemFromMonday({ mondayClient, supabase }, "111222333", "555", "create_item"),
@@ -34,9 +34,9 @@ test("syncItemFromMonday throws ItemNotFoundError when the item can't be fetched
 
 test("syncItemFromMonday throws BoardMismatchError when the fetched item belongs to a different board", async () => {
   const supabase = createFakeSupabaseClient();
-  const mondayClient = createFakeMondayClient({
+  const mondayClient = createFakeMondayClient({ items: {
     "555": buildMondayItem({ id: "555", name: "Wrong board item", board: { id: "999888777" } }),
-  });
+  } });
 
   await assert.rejects(
     () => syncItemFromMonday({ mondayClient, supabase }, "111222333", "555", "create_item"),
@@ -47,7 +47,7 @@ test("syncItemFromMonday throws BoardMismatchError when the fetched item belongs
 
 test("syncItemFromMonday propagates Monday API failures", async () => {
   const supabase = createFakeSupabaseClient();
-  const mondayClient = createFakeMondayClient({ "555": "ERROR" });
+  const mondayClient = createFakeMondayClient({ items: { "555": "ERROR" } });
 
   await assert.rejects(() => syncItemFromMonday({ mondayClient, supabase }, "111222333", "555", "create_item"));
 });

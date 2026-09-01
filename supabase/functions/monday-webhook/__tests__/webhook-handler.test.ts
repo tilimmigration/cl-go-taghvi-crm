@@ -61,14 +61,14 @@ test("1. challenge verification: echoes the challenge, writes nothing, needs no 
 
 test("2. create_item: fetches the full item, transforms it, and creates one CRM lead", async () => {
   const supabase = createFakeSupabaseClient();
-  const mondayClient = createFakeMondayClient({
+  const mondayClient = createFakeMondayClient({ items: {
     "555": buildMondayItem({
       id: "555",
       name: "Ana Beltran",
       board: { id: BOARD_ID },
       column_values: [{ id: "status", text: "New lead", value: null, column: { title: "Status" } }],
     }),
-  });
+  } });
 
   const res = await handleWebhookRequest(
     postRequest({ event: { type: "create_item", boardId: Number(BOARD_ID), pulseId: 555, userId: 1 } }),
@@ -96,7 +96,7 @@ test("3. change_column_value: re-fetches the whole item and updates the existing
     board: { id: BOARD_ID },
     column_values: [{ id: "status", text: "New lead", value: null, column: { title: "Status" } }],
   });
-  const mondayClient = createFakeMondayClient({ "555": mondayItem });
+  const mondayClient = createFakeMondayClient({ items: { "555": mondayItem } });
   const config = baseConfig();
 
   // Seed via create_item first.
@@ -129,7 +129,7 @@ test("4. change_name: re-fetches the item and updates the name, preserving other
     board: { id: BOARD_ID },
     column_values: [{ id: "status", text: "New lead", value: null, column: { title: "Status" } }],
   });
-  const mondayClient = createFakeMondayClient({ "555": mondayItem });
+  const mondayClient = createFakeMondayClient({ items: { "555": mondayItem } });
   const config = baseConfig();
 
   await handleWebhookRequest(postRequest({ event: { type: "create_item", boardId: Number(BOARD_ID), pulseId: 555 } }), {
@@ -156,7 +156,7 @@ test("4. change_name: re-fetches the item and updates the name, preserving other
 test("5. item_archived: marks the lead archived, preserves the rest, never hard-deletes", async () => {
   const supabase = createFakeSupabaseClient();
   const mondayItem = buildMondayItem({ id: "555", name: "Ana Beltran", board: { id: BOARD_ID }, column_values: [] });
-  const mondayClient = createFakeMondayClient({ "555": mondayItem });
+  const mondayClient = createFakeMondayClient({ items: { "555": mondayItem } });
   const config = baseConfig();
 
   await handleWebhookRequest(postRequest({ event: { type: "create_item", boardId: Number(BOARD_ID), pulseId: 555 } }), {
@@ -184,7 +184,7 @@ test("5. item_archived: marks the lead archived, preserves the rest, never hard-
 test("6. item_deleted: soft-deletes the lead, never hard-deletes the row", async () => {
   const supabase = createFakeSupabaseClient();
   const mondayItem = buildMondayItem({ id: "555", name: "Ana Beltran", board: { id: BOARD_ID }, column_values: [] });
-  const mondayClient = createFakeMondayClient({ "555": mondayItem });
+  const mondayClient = createFakeMondayClient({ items: { "555": mondayItem } });
   const config = baseConfig();
 
   await handleWebhookRequest(postRequest({ event: { type: "create_item", boardId: Number(BOARD_ID), pulseId: 555 } }), {
@@ -210,7 +210,7 @@ test("6. item_deleted: soft-deletes the lead, never hard-deletes the row", async
 
 test("7. invalid board id: not processed, logged, still a successful response", async () => {
   const supabase = createFakeSupabaseClient();
-  const mondayClient = createFakeMondayClient({});
+  const mondayClient = createFakeMondayClient({ items: {} });
   const config = baseConfig();
 
   const res = await handleWebhookRequest(
@@ -228,9 +228,9 @@ test("7. invalid board id: not processed, logged, still a successful response", 
 
 test("8. duplicate event: replaying the same event twice still results in exactly one lead", async () => {
   const supabase = createFakeSupabaseClient();
-  const mondayClient = createFakeMondayClient({
+  const mondayClient = createFakeMondayClient({ items: {
     "555": buildMondayItem({ id: "555", name: "Ana Beltran", board: { id: BOARD_ID }, column_values: [] }),
-  });
+  } });
   const config = baseConfig();
   const event = { event: { type: "create_item", boardId: Number(BOARD_ID), pulseId: 555, eventId: "evt-dup-1" } };
 
@@ -246,7 +246,7 @@ test("8. duplicate event: replaying the same event twice still results in exactl
 
 test("9. missing item id: not processed, logged as invalid, still a successful response", async () => {
   const supabase = createFakeSupabaseClient();
-  const mondayClient = createFakeMondayClient({});
+  const mondayClient = createFakeMondayClient({ items: {} });
   const config = baseConfig();
 
   const res = await handleWebhookRequest(
@@ -264,7 +264,7 @@ test("9. missing item id: not processed, logged as invalid, still a successful r
 
 test("10. Monday API failure: returns 500 (retryable), logs the error, creates no lead", async () => {
   const supabase = createFakeSupabaseClient();
-  const mondayClient = createFakeMondayClient({ "555": "ERROR" });
+  const mondayClient = createFakeMondayClient({ items: { "555": "ERROR" } });
   const config = baseConfig();
 
   const res = await handleWebhookRequest(
@@ -284,7 +284,7 @@ test("10. Monday API failure: returns 500 (retryable), logs the error, creates n
 
 test("unsupported event type is skipped without error", async () => {
   const supabase = createFakeSupabaseClient();
-  const mondayClient = createFakeMondayClient({});
+  const mondayClient = createFakeMondayClient({ items: {} });
   const config = baseConfig();
 
   const res = await handleWebhookRequest(
@@ -314,7 +314,7 @@ test("malformed JSON body is accepted and dropped (never retried forever)", asyn
 
 test("optional shared-secret hardening rejects requests with a wrong/missing token", async () => {
   const supabase = createFakeSupabaseClient();
-  const mondayClient = createFakeMondayClient({});
+  const mondayClient = createFakeMondayClient({ items: {} });
   const config = baseConfig({ webhookSharedSecret: "s3cr3t" });
 
   const noToken = await handleWebhookRequest(

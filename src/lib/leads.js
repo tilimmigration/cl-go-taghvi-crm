@@ -15,6 +15,7 @@ const SELECT_COLUMNS = [
   "phone",
   "company",
   "website",
+  "address",
   "lead_type",
   "lead_source",
   "status",
@@ -25,6 +26,7 @@ const SELECT_COLUMNS = [
   "country",
   "industry",
   "notes",
+  "custom_fields",
   "created_at",
   "updated_at",
 ].join(", ");

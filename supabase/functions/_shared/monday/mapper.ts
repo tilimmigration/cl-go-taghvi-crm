@@ -1,8 +1,8 @@
 // Transforms a raw Monday.com item into the normalized shape the CRM
 // leads table stores. This is the single source of truth for
-// column -> field mapping: both the webhook pipeline and any future
-// initial/bulk import script must call mapMondayItemToLead() rather than
-// re-implementing this transformation.
+// column -> field mapping: both the webhook pipeline and the bulk import
+// (supabase/functions/_shared/monday/import.ts) call mapMondayItemToLead()
+// rather than re-implementing this transformation.
 //
 // Column matching strategy: by default, columns are matched by TITLE
 // (case-insensitive, whitespace-trimmed) against the well-known Leads
@@ -12,28 +12,55 @@
 // MONDAY_COLUMN_ID_MAP (JSON, e.g. '{"email":"email_9"}') to pin exact
 // ids per field — id-based entries always take priority over title
 // matches.
+//
+// Every column type Monday supports (text, status, people, date, formula,
+// mirror, connect boards, ...) already carries a display `text` and a raw
+// `value` on every column_value regardless of type — so a column that
+// isn't one of the standard fields below is never dropped, it lands in
+// customFields with its title, type, text and raw value intact. Nothing
+// requires per-column-type special-casing to be preserved.
 
 import type { MondayColumnValue, MondayItem, NormalizedLead } from "./types.ts";
 
 export type LeadFieldKey =
+  | "firstName"
+  | "lastName"
   | "leadType"
   | "leadSource"
   | "status"
+  | "stage"
   | "owner"
   | "email"
   | "phone"
-  | "company";
+  | "company"
+  | "website"
+  | "address"
+  | "city"
+  | "state"
+  | "country"
+  | "industry"
+  | "notes";
 
 const DEFAULT_TITLE_MAP: Record<string, LeadFieldKey> = {
+  "first name": "firstName",
+  "last name": "lastName",
   "lead type": "leadType",
   "lead source": "leadSource",
   "source": "leadSource",
   "status": "status",
+  "stage": "stage",
   "owner": "owner",
   "assigned to": "owner",
   "email": "email",
   "phone": "phone",
   "company": "company",
+  "website": "website",
+  "address": "address",
+  "city": "city",
+  "state": "state",
+  "country": "country",
+  "industry": "industry",
+  "notes": "notes",
 };
 
 function safeParseJson(raw: string | null): unknown {
@@ -91,13 +118,23 @@ export function mapMondayItemToLead(item: MondayItem, boardId: string, columnIdM
   const fieldMap = resolveColumnFieldMap(item.column_values, columnIdMapJson);
 
   const mapped: Record<LeadFieldKey, string | null> = {
+    firstName: null,
+    lastName: null,
     leadType: null,
     leadSource: null,
     status: null,
+    stage: null,
     owner: null,
     email: null,
     phone: null,
     company: null,
+    website: null,
+    address: null,
+    city: null,
+    state: null,
+    country: null,
+    industry: null,
+    notes: null,
   };
   let ownerMondayUserId: string | null = null;
   const customFields: NormalizedLead["customFields"] = {};
@@ -116,6 +153,7 @@ export function mapMondayItemToLead(item: MondayItem, boardId: string, columnIdM
 
     customFields[cv.id] = {
       title: cv.column?.title ?? null,
+      type: cv.type ?? null,
       text,
       value: safeParseJson(cv.value),
     };
@@ -127,14 +165,24 @@ export function mapMondayItemToLead(item: MondayItem, boardId: string, columnIdM
     mondayGroupId: item.group?.id ?? null,
     mondayGroupTitle: item.group?.title ?? null,
     name: item.name,
+    firstName: mapped.firstName,
+    lastName: mapped.lastName,
     leadType: mapped.leadType,
     leadSource: mapped.leadSource,
     status: mapped.status,
+    stage: mapped.stage,
     ownerName: mapped.owner,
     ownerMondayUserId,
     email: mapped.email,
     phone: mapped.phone,
     company: mapped.company,
+    website: mapped.website,
+    address: mapped.address,
+    city: mapped.city,
+    state: mapped.state,
+    country: mapped.country,
+    industry: mapped.industry,
+    notes: mapped.notes,
     customFields,
     rawColumnValues: item.column_values,
     mondayCreatedAt: item.created_at ?? null,

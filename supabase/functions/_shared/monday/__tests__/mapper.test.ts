@@ -20,7 +20,7 @@ test("maps well-known columns by title", () => {
       { id: "email_1", text: "ana@example.com", value: null, column: { title: "Email" } },
       { id: "phone_1", text: "(818) 442-0197", value: null, column: { title: "Phone" } },
       { id: "text_9", text: "", value: null, column: { title: "Company" } },
-      { id: "long_text", text: "Some private note", value: '{"note":true}', column: { title: "Internal notes" } },
+      { id: "long_text", text: "Some private note", value: '{"note":true}', type: "long_text", column: { title: "Internal notes" } },
     ],
   });
 
@@ -42,6 +42,7 @@ test("maps well-known columns by title", () => {
   // Unmapped column lands in customFields, keyed by column id.
   assert.deepEqual(lead.customFields.long_text, {
     title: "Internal notes",
+    type: "long_text",
     text: "Some private note",
     value: { note: true },
   });
@@ -74,4 +75,62 @@ test("malformed column id map JSON falls back to title matching without throwing
 
   const lead = mapMondayItemToLead(item, "111222333", "{not valid json");
   assert.equal(lead.email, "a@b.com");
+});
+
+test("maps the Phase 1 standard fields added beyond the original webhook set", () => {
+  const item = buildMondayItem({
+    id: "558",
+    name: "Full Profile",
+    column_values: [
+      { id: "c1", text: "Priya", value: null, column: { title: "First Name" } },
+      { id: "c2", text: "Raghunathan", value: null, column: { title: "Last Name" } },
+      { id: "c3", text: "Prospecting", value: null, column: { title: "Stage" } },
+      { id: "c4", text: "https://acme.example", value: null, column: { title: "Website" } },
+      { id: "c5", text: "123 Main St", value: null, column: { title: "Address" } },
+      { id: "c6", text: "Los Angeles", value: null, column: { title: "City" } },
+      { id: "c7", text: "CA", value: null, column: { title: "State" } },
+      { id: "c8", text: "USA", value: null, column: { title: "Country" } },
+      { id: "c9", text: "Legal", value: null, column: { title: "Industry" } },
+      { id: "c10", text: "Called twice, no answer.", value: null, column: { title: "Notes" } },
+    ],
+  });
+
+  const lead = mapMondayItemToLead(item, "111222333");
+
+  assert.equal(lead.firstName, "Priya");
+  assert.equal(lead.lastName, "Raghunathan");
+  assert.equal(lead.stage, "Prospecting");
+  assert.equal(lead.website, "https://acme.example");
+  assert.equal(lead.address, "123 Main St");
+  assert.equal(lead.city, "Los Angeles");
+  assert.equal(lead.state, "CA");
+  assert.equal(lead.country, "USA");
+  assert.equal(lead.industry, "Legal");
+  assert.equal(lead.notes, "Called twice, no answer.");
+  assert.equal(Object.keys(lead.customFields).length, 0);
+});
+
+test("every column type is preserved in customFields even when unrecognized", () => {
+  const columnTypes = ["numbers", "dropdown", "date", "timeline", "checkbox", "link", "location", "tags", "rating", "country", "file", "formula", "board_relation", "mirror"];
+  const item = buildMondayItem({
+    id: "559",
+    name: "Type Coverage",
+    column_values: columnTypes.map((type, i) => ({
+      id: `col_${i}`,
+      text: `display-${type}`,
+      value: JSON.stringify({ raw: type }),
+      type,
+      column: { title: `Custom ${type}` },
+    })),
+  });
+
+  const lead = mapMondayItemToLead(item, "111222333");
+
+  for (let i = 0; i < columnTypes.length; i++) {
+    const field = lead.customFields[`col_${i}`];
+    assert.ok(field, `expected customFields.col_${i} to be preserved`);
+    assert.equal(field.type, columnTypes[i]);
+    assert.equal(field.text, `display-${columnTypes[i]}`);
+    assert.deepEqual(field.value, { raw: columnTypes[i] });
+  }
 });

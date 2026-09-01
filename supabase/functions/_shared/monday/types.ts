@@ -22,6 +22,31 @@ export interface MondayItem {
   column_values: MondayColumnValue[];
 }
 
+/** A column definition on a Monday board — from Board.columns, not an item's values. */
+export interface MondayColumnDef {
+  id: string;
+  title: string | null;
+  type: string | null;
+  description: string | null;
+  settings_str: string | null;
+  archived: boolean;
+}
+
+/** Board + workspace metadata, and every column defined on the board. */
+export interface MondayBoardMeta {
+  boardId: string;
+  boardName: string | null;
+  workspaceId: string | null;
+  workspaceName: string | null;
+  columns: MondayColumnDef[];
+}
+
+/** One page of items from a paginated board fetch. */
+export interface MondayItemsPage {
+  items: MondayItem[];
+  cursor: string | null;
+}
+
 /** The normalized shape the mapper produces and the repository upserts. */
 export interface NormalizedLead {
   mondayBoardId: string;
@@ -29,15 +54,25 @@ export interface NormalizedLead {
   mondayGroupId: string | null;
   mondayGroupTitle: string | null;
   name: string;
+  firstName: string | null;
+  lastName: string | null;
   leadType: string | null;
   leadSource: string | null;
   status: string | null;
+  stage: string | null;
   ownerName: string | null;
   ownerMondayUserId: string | null;
   email: string | null;
   phone: string | null;
   company: string | null;
-  customFields: Record<string, { title: string | null; text: string | null; value: unknown }>;
+  website: string | null;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  country: string | null;
+  industry: string | null;
+  notes: string | null;
+  customFields: Record<string, { title: string | null; type: string | null; text: string | null; value: unknown }>;
   rawColumnValues: MondayColumnValue[];
   mondayCreatedAt: string | null;
   mondayUpdatedAt: string | null;
