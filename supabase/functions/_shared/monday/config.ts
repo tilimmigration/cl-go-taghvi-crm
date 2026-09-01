@@ -42,6 +42,14 @@ export interface MondaySyncConfig {
    * since column titles can be renamed.
    */
   columnIdMapJson?: string;
+  /**
+   * Optional: the Call Log Tracker board id. When set, monday-import also
+   * imports this board into crm_calls, linked back to crm_leads via a
+   * connect-boards column. Omit to import Leads only.
+   */
+  callsBoardId?: string;
+  /** Optional: the Deals board id — same behavior as callsBoardId, targeting crm_deals. */
+  dealsBoardId?: string;
 }
 
 /**
@@ -76,5 +84,7 @@ export function loadConfig(): MondaySyncConfig {
     supabaseServiceRoleKey: supabaseServiceRoleKey!,
     webhookSharedSecret: readEnv("MONDAY_WEBHOOK_SECRET"),
     columnIdMapJson: readEnv("MONDAY_COLUMN_ID_MAP"),
+    callsBoardId: readEnv("MONDAY_CALLS_BOARD_ID"),
+    dealsBoardId: readEnv("MONDAY_DEALS_BOARD_ID"),
   };
 }

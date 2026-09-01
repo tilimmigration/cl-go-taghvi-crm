@@ -1,7 +1,13 @@
 import { useState } from "react";
 import { boardFor, DEDUPE } from "../data.js";
 import { useLeads } from "../hooks/useLeads.js";
-import { leadDisplayName } from "../lib/leads.js";
+import { leadDisplayName, SOURCE_TYPE_LABELS } from "../lib/leads.js";
+
+const SOURCE_TYPE_STYLES = {
+  lead: { bg: "var(--brill-orange-100)", fg: "var(--brill-wine)" },
+  call: { bg: "var(--brill-blue-100)", fg: "var(--brill-blue-700)" },
+  deal: { bg: "var(--surface-muted)", fg: "var(--fg-2)" },
+};
 
 const LIVE_LEAD_DETAIL_FIELDS = [
   ["Lead type", "lead_type"],
@@ -196,6 +202,7 @@ export default function Pipeline({ showDedupeFlags, onOpenLead }) {
             {liveLeads.leads.map((lead) => {
               const expanded = expandedLeadId === lead.id;
               const customFieldEntries = Object.entries(lead.custom_fields || {});
+              const relatedLead = lead.related_lead_id ? liveLeads.leads.find((l) => l.id === lead.related_lead_id) : null;
 
               return (
                 <div key={lead.id} style={{ display: "flex", flexDirection: "column" }}>
@@ -218,7 +225,23 @@ export default function Pipeline({ showDedupeFlags, onOpenLead }) {
                     }}
                   >
                     <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                      <span style={{ fontSize: 15, fontWeight: 600 }}>{leadDisplayName(lead)}</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ fontSize: 15, fontWeight: 600 }}>{leadDisplayName(lead)}</span>
+                        <span
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 600,
+                            padding: "2px 7px",
+                            borderRadius: "var(--radius-pill)",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.04em",
+                            background: SOURCE_TYPE_STYLES[lead._sourceType]?.bg,
+                            color: SOURCE_TYPE_STYLES[lead._sourceType]?.fg,
+                          }}
+                        >
+                          {SOURCE_TYPE_LABELS[lead._sourceType] || "Lead"}
+                        </span>
+                      </div>
                       <span style={{ fontSize: 12, color: "var(--fg-3)" }}>{lead.company || "—"}</span>
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -269,6 +292,15 @@ export default function Pipeline({ showDedupeFlags, onOpenLead }) {
                             ))}
                           </div>
                         </div>
+                      )}
+
+                      {lead._sourceType !== "lead" && (lead.related_lead_monday_item_id || relatedLead) && (
+                        <span style={{ fontSize: 12, color: "var(--fg-2)" }}>
+                          Linked to lead:{" "}
+                          <span style={{ fontWeight: 600 }}>
+                            {relatedLead ? leadDisplayName(relatedLead) : `Monday item ${lead.related_lead_monday_item_id} (not yet imported)`}
+                          </span>
+                        </span>
                       )}
 
                       <span style={{ fontSize: 11, color: "var(--fg-3)" }}>
