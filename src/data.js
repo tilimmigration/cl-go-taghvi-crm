@@ -9,7 +9,7 @@ export const VIEWS = {
     label: "Dashboard",
     overline: "Live metrics",
     title: "Performance overview",
-    sub: "Live lead, call and deal counts synced from Monday.com via Supabase. Revenue and channel cost aren't tracked yet, so they aren't shown.",
+    sub: "Deduplicated leads, funnel conversion and channel cost in one view. Numbers illustrate the structure, not real reporting.",
   },
   pipe: {
     key: "pipe",
@@ -58,6 +58,71 @@ export const SOURCES = [
 ];
 
 export const TF_LABELS = { week: "This week", month: "This month", quarter: "This quarter" };
+
+export const KPI_SETS = {
+  week: [
+    ["Total unique leads", "21", "+11% vs prior week", 1],
+    ["CE booked", "8", "+14%", 1],
+    ["CE completed", "5", "−4%", -1],
+    ["Proposals sent", "4", "+33%", 1],
+    ["Contracts signed", "2", "Flat", 0],
+    ["Revenue", "$12,800", "+18%", 1],
+  ],
+  month: [
+    ["Total unique leads", "84", "+18% vs last month", 1],
+    ["CE booked", "31", "+29%", 1],
+    ["CE completed", "19", "+12%", 1],
+    ["Proposals sent", "14", "+27%", 1],
+    ["Contracts signed", "6", "+20%", 1],
+    ["Revenue", "$47,400", "+22%", 1],
+  ],
+  quarter: [
+    ["Total unique leads", "231", "+9% vs prior quarter", 1],
+    ["CE booked", "88", "+6%", 1],
+    ["CE completed", "57", "−3%", -1],
+    ["Proposals sent", "41", "+11%", 1],
+    ["Contracts signed", "18", "+13%", 1],
+    ["Revenue", "$142,600", "+15%", 1],
+  ],
+};
+
+export function kpisFor(tf) {
+  return KPI_SETS[tf].map((k) => ({
+    label: k[0],
+    value: k[1],
+    delta: k[2],
+    color: k[3] > 0 ? ORANGE : k[3] < 0 ? WINE : "var(--fg-3)",
+  }));
+}
+
+export const FUNNEL = [
+  { label: "Leads → CE booked", count: "31 of 84", rate: "37%", width: "37%", bar: NAVY, target: "40%", verdict: "3 points short" },
+  { label: "CE booked → CE completed", count: "19 of 31", rate: "61%", width: "61%", bar: WINE, target: "80%", verdict: "biggest leak — reminders and no-shows" },
+  { label: "CE completed → proposal sent", count: "14 of 19", rate: "74%", width: "74%", bar: NAVY, target: "90%", verdict: "5 CEs left without a proposal" },
+  { label: "Proposal sent → signed", count: "6 of 14", rate: "43%", width: "43%", bar: NAVY, target: "45%", verdict: "on track" },
+  { label: "Overall lead → signed", count: "6 of 84", rate: "7.1%", width: "7%", bar: ORANGE, target: "10%", verdict: "recovering CE show rate closes most of the gap" },
+];
+
+export const CASE_TYPES = [
+  { name: "Deportation / asylum", urgency: "Very urgent", urgencyColor: WINE, leads: "19", ceRate: "47%", signRate: "11%", days: "4" },
+  { name: "Family immigration", urgency: "Medium urgent", urgencyColor: ORANGE, leads: "38", ceRate: "40%", signRate: "8%", days: "19" },
+  { name: "Employment immigration", urgency: "Low urgency", urgencyColor: "var(--fg-3)", leads: "27", ceRate: "30%", signRate: "4%", days: "96" },
+];
+
+export const CHANNELS = [
+  { name: "Google Ads", leads: "24", cpl: "$86", ces: "11", cpce: "$187", signed: "3", cac: "$686", weight: "500", cacColor: NAVY },
+  { name: "Meta Ads", leads: "31", cpl: "$61", ces: "9", cpce: "$211", signed: "2", cac: "$949", weight: "500", cacColor: WINE },
+  { name: "Website — organic", leads: "14", cpl: "—", ces: "5", cpce: "—", signed: "1", cac: "—", weight: "500", cacColor: "var(--fg-3)" },
+  { name: "Phone — inbound", leads: "9", cpl: "—", ces: "4", cpce: "—", signed: "0", cac: "—", weight: "500", cacColor: "var(--fg-3)" },
+  { name: "Referrals", leads: "6", cpl: "—", ces: "2", cpce: "—", signed: "0", cac: "—", weight: "500", cacColor: "var(--fg-3)" },
+  { name: "Total", leads: "84", cpl: "$47 blended", ces: "31", cpce: "$128", signed: "6", cac: "$659", weight: "700", cacColor: NAVY },
+];
+
+export const ALERTS = [
+  { tag: "Attribution", title: "First touch decides channel credit", body: "Meta buys the cheaper lead; Google converts it. Judge Meta on CPL and lead quality, Google on CAC — and read blended CAC before moving budget." },
+  { tag: "Leak", title: "12 booked consultations never happened", body: "No-shows and cancellations are the largest single loss in the funnel. Calendly reminders plus a same-day confirmation call recover most of it." },
+  { tag: "Data gap", title: "Website form still writes to the sheet only", body: "The 31 July submission reached Google Sheets but no inbox. Until the webhook is re-enabled, website leads depend on someone opening the sheet." },
+];
 
 const CARD_CASE = {
   Family: ["var(--brill-orange-100)", "var(--brill-wine)"],
