@@ -14,7 +14,6 @@ const PROPS = {
   clientName: "Taghavi Immigration Law",
   showAiPanel: true,
   showDedupeFlags: true,
-  showBenchmarkTargets: true,
 };
 
 const AUTH_KEY = "taghavi-crm-authed";
@@ -63,7 +62,7 @@ export default function App() {
         />
 
         <div style={{ padding: "var(--space-6) var(--space-7) var(--space-9)", display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
-          {view === "dash" && <Dashboard tf={tf} showTargets={PROPS.showBenchmarkTargets} />}
+          {view === "dash" && <Dashboard tf={tf} />}
           {view === "pipe" && <Pipeline showDedupeFlags={PROPS.showDedupeFlags} onOpenLead={openLead} />}
           {view === "post" && <PostCE />}
           {view === "record" && (
