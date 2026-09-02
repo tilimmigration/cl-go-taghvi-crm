@@ -1,162 +1,112 @@
-import { kpisFor, FUNNEL, CASE_TYPES, CHANNELS, ALERTS, TF_LABELS } from "../data.js";
+import { TF_LABELS } from "../data.js";
+import { useLeads } from "../hooks/useLeads.js";
+import { computeDashboardStats } from "../lib/dashboardStats.js";
 
 const card = { background: "var(--surface-raised)", borderRadius: "var(--radius-md)", boxShadow: "var(--shadow-sm)" };
 
-export default function Dashboard({ tf, showTargets }) {
-  const kpis = kpisFor(tf);
+const BAR_COLORS = ["var(--brill-navy)", "var(--brill-orange)", "var(--brill-wine)", "var(--brill-blue)", "var(--fg-3)"];
+
+function Breakdown({ title, entries, emptyLabel }) {
+  return (
+    <section style={{ ...card, padding: "var(--space-5)", display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
+      <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>{title}</h2>
+      {entries.length === 0 ? (
+        <span style={{ fontSize: 14, color: "var(--fg-3)" }}>{emptyLabel}</span>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
+          {entries.map((e, i) => (
+            <div key={e.label} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "var(--space-3)", fontSize: 14 }}>
+                <span style={{ fontWeight: 500 }}>{e.label}</span>
+                <span style={{ color: "var(--fg-3)" }}>
+                  <b style={{ color: "var(--fg-1)", fontWeight: 600 }}>{e.count}</b> · {e.pct}%
+                </span>
+              </div>
+              <div style={{ height: 10, borderRadius: "var(--radius-pill)", background: "var(--surface-muted)", overflow: "hidden" }}>
+                <div style={{ height: "100%", borderRadius: "var(--radius-pill)", width: `${e.pct}%`, background: BAR_COLORS[i % BAR_COLORS.length] }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+export default function Dashboard({ tf }) {
+  const liveLeads = useLeads();
   const tfLabel = TF_LABELS[tf];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0,1fr))", gap: "var(--space-4)" }}>
-        {kpis.map((k) => (
-          <div key={k.label} style={{ ...card, padding: "var(--space-4)", display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-            <span style={{ fontSize: 12, fontWeight: 500, color: "var(--fg-3)", lineHeight: 1.35 }}>{k.label}</span>
-            <span style={{ fontSize: 30, fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1 }}>{k.value}</span>
-            <span style={{ fontSize: 12, fontWeight: 600, color: k.color }}>{k.delta}</span>
-          </div>
-        ))}
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "1.1fr 1fr", gap: "var(--space-5)" }}>
-        <section style={{ ...card, padding: "var(--space-5)", display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
-          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "var(--space-3)" }}>
-            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>Funnel conversion</h2>
-            <span style={{ fontSize: 13, color: "var(--fg-3)" }}>{tfLabel}</span>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
-            {FUNNEL.map((f) => (
-              <div key={f.label} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "var(--space-3)", fontSize: 14 }}>
-                  <span style={{ fontWeight: 500 }}>{f.label}</span>
-                  <span style={{ color: "var(--fg-3)" }}>
-                    <b style={{ color: "var(--fg-1)", fontWeight: 600 }}>{f.count}</b> · {f.rate}
-                  </span>
-                </div>
-                <div style={{ height: 10, borderRadius: "var(--radius-pill)", background: "var(--surface-muted)", overflow: "hidden" }}>
-                  <div style={{ height: "100%", borderRadius: "var(--radius-pill)", width: f.width, background: f.bar }} />
-                </div>
-                {showTargets && (
-                  <span style={{ fontSize: 12, color: "var(--fg-3)" }}>
-                    Target {f.target} · {f.verdict}
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section style={{ ...card, padding: "var(--space-5)", display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>Case type performance</h2>
-          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
-            {CASE_TYPES.map((c) => (
-              <div
-                key={c.name}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1.4fr repeat(4, minmax(0,1fr))",
-                  gap: "var(--space-3)",
-                  alignItems: "center",
-                  padding: "var(--space-3)",
-                  borderRadius: "var(--radius-sm)",
-                  background: "var(--surface-muted)",
-                }}
-              >
-                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                  <span style={{ fontSize: 15, fontWeight: 600 }}>{c.name}</span>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: c.urgencyColor }}>{c.urgency}</span>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column" }}>
-                  <span style={{ fontSize: 11, color: "var(--fg-3)" }}>Leads</span>
-                  <span style={{ fontSize: 17, fontWeight: 600 }}>{c.leads}</span>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column" }}>
-                  <span style={{ fontSize: 11, color: "var(--fg-3)" }}>CE rate</span>
-                  <span style={{ fontSize: 17, fontWeight: 600 }}>{c.ceRate}</span>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column" }}>
-                  <span style={{ fontSize: 11, color: "var(--fg-3)" }}>Sign rate</span>
-                  <span style={{ fontSize: 17, fontWeight: 600 }}>{c.signRate}</span>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column" }}>
-                  <span style={{ fontSize: 11, color: "var(--fg-3)" }}>Days to sign</span>
-                  <span style={{ fontSize: 17, fontWeight: 600 }}>{c.days}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-          <p style={{ margin: 0, fontSize: 13, color: "var(--fg-3)", lineHeight: 1.5 }}>
-            Timelines match the urgency bands in the scope: deportation signs in days, employment in months. Compare each channel against the case types it actually produces.
-          </p>
-        </section>
-      </div>
-
-      <section style={{ ...card, padding: "var(--space-5)", display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
-        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "var(--space-3)" }}>
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>Channel performance — first touch</h2>
-          <span style={{ fontSize: 13, color: "var(--fg-3)" }}>Blended CAC alongside channel CAC. Multi-touch leads keep first-touch credit.</span>
+      {liveLeads.status === "loading" && (
+        <div style={{ ...card, padding: "var(--space-5)" }}>
+          <span style={{ fontSize: 14, color: "var(--fg-3)" }}>Loading dashboard…</span>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1.6fr repeat(6, minmax(0,1fr))", gap: 0, fontSize: 14 }}>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "subgrid",
-              gridColumn: "1 / -1",
-              paddingBottom: "var(--space-2)",
-              borderBottom: "1px solid var(--border-default)",
-              fontSize: 11,
-              fontWeight: 600,
-              letterSpacing: "0.06em",
-              textTransform: "uppercase",
-              color: "var(--fg-3)",
-            }}
-          >
-            <span>Channel</span><span>Leads</span><span>CPL</span><span>CEs</span><span>CPCE</span><span>Signed</span><span>CAC</span>
-          </div>
-          {CHANNELS.map((ch) => (
-            <div
-              key={ch.name}
-              style={{
-                display: "grid",
-                gridTemplateColumns: "subgrid",
-                gridColumn: "1 / -1",
-                padding: "var(--space-3) 0",
-                borderBottom: "1px solid var(--border-subtle)",
-                alignItems: "center",
-              }}
-            >
-              <span style={{ fontWeight: ch.weight }}>{ch.name}</span>
-              <span>{ch.leads}</span>
-              <span>{ch.cpl}</span>
-              <span>{ch.ces}</span>
-              <span>{ch.cpce}</span>
-              <span>{ch.signed}</span>
-              <span style={{ fontWeight: 600, color: ch.cacColor }}>{ch.cac}</span>
+      )}
+
+      {liveLeads.status === "not_configured" && (
+        <div style={{ ...card, padding: "var(--space-5)" }}>
+          <span style={{ fontSize: 14, color: "var(--fg-3)" }}>
+            Supabase isn't connected yet. Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY (see .env.example) to enable this dashboard.
+          </span>
+        </div>
+      )}
+
+      {liveLeads.status === "error" && (
+        <div style={{ ...card, padding: "var(--space-5)" }}>
+          <span style={{ fontSize: 14, color: "var(--brill-wine)" }}>Couldn't load dashboard data: {liveLeads.error}</span>
+        </div>
+      )}
+
+      {liveLeads.status === "ready" && (
+        <>
+          {liveLeads.leads.length === 0 ? (
+            <div style={{ ...card, padding: "var(--space-5)" }}>
+              <span style={{ fontSize: 14, color: "var(--fg-3)" }}>
+                No leads yet. This dashboard populates automatically once Monday.com data is imported.
+              </span>
             </div>
-          ))}
-        </div>
-      </section>
+          ) : (
+            (() => {
+              const stats = computeDashboardStats(liveLeads.leads, tf);
+              const kpis = [
+                { label: "Total leads", value: stats.totalLeads },
+                { label: `New leads — ${tfLabel.toLowerCase()}`, value: stats.newLeadsInPeriod },
+                { label: "Total calls", value: stats.totalCalls },
+                { label: "Total deals", value: stats.totalDeals },
+              ];
 
-      <section style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: "var(--space-4)" }}>
-        {ALERTS.map((a) => (
-          <div
-            key={a.tag}
-            style={{
-              background: "var(--brill-navy)",
-              color: "var(--fg-on-dark-1)",
-              borderRadius: "var(--radius-md)",
-              padding: "var(--space-5)",
-              display: "flex",
-              flexDirection: "column",
-              gap: "var(--space-2)",
-            }}
-          >
-            <span style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--brill-orange)" }}>{a.tag}</span>
-            <span style={{ fontSize: 17, fontWeight: 600, lineHeight: 1.35 }}>{a.title}</span>
-            <span style={{ fontSize: 14, color: "var(--fg-on-dark-2)", lineHeight: 1.5 }}>{a.body}</span>
-          </div>
-        ))}
-      </section>
+              return (
+                <>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0,1fr))", gap: "var(--space-4)" }}>
+                    {kpis.map((k) => (
+                      <div key={k.label} style={{ ...card, padding: "var(--space-4)", display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+                        <span style={{ fontSize: 12, fontWeight: 500, color: "var(--fg-3)", lineHeight: 1.35 }}>{k.label}</span>
+                        <span style={{ fontSize: 30, fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1 }}>{k.value}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-5)" }}>
+                    <Breakdown title="Leads by status" entries={stats.statusBreakdown} emptyLabel="No status data yet." />
+                    <Breakdown title="Leads by type" entries={stats.typeBreakdown} emptyLabel="No lead type data yet." />
+                  </div>
+
+                  <Breakdown title="Leads by source" entries={stats.sourceBreakdown} emptyLabel="No lead source data yet." />
+
+                  <div style={{ ...card, padding: "var(--space-4) var(--space-5)" }}>
+                    <span style={{ fontSize: 13, color: "var(--fg-3)", lineHeight: 1.5 }}>
+                      This dashboard reads crm_leads/crm_calls/crm_deals directly from Supabase. Revenue, ad spend/CAC, CE booking and
+                      proposal/signed tracking aren't part of the synced Monday.com data yet, so those metrics aren't shown here.
+                    </span>
+                  </div>
+                </>
+              );
+            })()
+          )}
+        </>
+      )}
     </div>
   );
 }
