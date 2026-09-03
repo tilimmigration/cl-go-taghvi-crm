@@ -94,8 +94,13 @@ export default function Dashboard({ tf, showTargets }) {
         <section style={{ ...card, padding: "var(--space-5)", display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
           <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "var(--space-3)" }}>
             <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>Funnel conversion</h2>
-            <span style={{ fontSize: 13, color: "var(--fg-3)" }}>{ready ? "Live from Supabase" : tfLabel}</span>
+            <span style={{ fontSize: 13, color: "var(--fg-3)" }}>{ready ? "Live from Supabase — current stage" : tfLabel}</span>
           </div>
+          {ready && (
+            <span style={{ fontSize: 12, color: "var(--fg-3)", marginTop: -8 }}>
+              Counts reflect deals currently sitting in each Monday stage/group, not cumulative historical conversion.
+            </span>
+          )}
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
             {funnel.map((f) => (
               <div key={f.label} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
