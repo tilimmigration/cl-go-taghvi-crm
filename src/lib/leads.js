@@ -41,6 +41,8 @@ const LINKED_RECORD_COLUMNS = [
   "id",
   "monday_board_id",
   "monday_item_id",
+  "monday_group_id",
+  "monday_group_title",
   "name",
   "email",
   "phone",
