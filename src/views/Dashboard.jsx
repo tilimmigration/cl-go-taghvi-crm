@@ -1,18 +1,73 @@
-import { kpisFor, FUNNEL, CASE_TYPES, CHANNELS, ALERTS, TF_LABELS } from "../data.js";
+import { kpisFor, FUNNEL, CASE_TYPES, CHANNELS, ALERTS, TF_LABELS, NAVY, ORANGE, WINE } from "../data.js";
 import { useLeads } from "../hooks/useLeads.js";
+import { aggregateDealStats, FIELD_LABELS } from "../lib/dealStats.js";
 
 const card = { background: "var(--surface-raised)", borderRadius: "var(--radius-md)", boxShadow: "var(--shadow-sm)" };
+
+function pct(numerator, denominator) {
+  return denominator > 0 ? Math.round((numerator / denominator) * 100) : 0;
+}
+
+function verdictFor(ratePct, targetPct) {
+  const diff = ratePct - targetPct;
+  return diff >= 0 ? "On track" : `${Math.abs(diff)} points short`;
+}
+
+/** Builds the funnel-shaped rows the UI expects (same shape as data.js's mock FUNNEL) from real counts. */
+function buildLiveFunnel(totalLeads, deals) {
+  const stages = [
+    { label: "Leads → CE booked", num: deals.ceBooked, den: totalLeads, target: 40, bar: NAVY },
+    { label: "CE booked → CE completed", num: deals.ceCompleted, den: deals.ceBooked, target: 80, bar: WINE },
+    { label: "CE completed → proposal sent", num: deals.proposalSent, den: deals.ceCompleted, target: 90, bar: NAVY },
+    { label: "Proposal sent → signed", num: deals.contractSigned, den: deals.proposalSent, target: 45, bar: NAVY },
+    { label: "Overall lead → signed", num: deals.contractSigned, den: totalLeads, target: 10, bar: ORANGE },
+  ];
+  return stages.map((s) => {
+    const rate = pct(s.num, s.den);
+    return {
+      label: s.label,
+      count: `${s.num} of ${s.den}`,
+      rate: `${rate}%`,
+      width: `${rate}%`,
+      bar: s.bar,
+      target: `${s.target}%`,
+      verdict: verdictFor(rate, s.target),
+    };
+  });
+}
 
 export default function Dashboard({ tf, showTargets }) {
   const liveLeads = useLeads();
   const tfLabel = TF_LABELS[tf];
 
   // Everything on this dashboard is illustrative mock data (see data.js)
-  // except the "Total unique leads" tile, which is swapped for the real
-  // count from crm_leads once Supabase has responded — the rest still
-  // needs real revenue/spend/CE-tracking data we don't sync yet.
-  const liveLeadCount = liveLeads.status === "ready" ? liveLeads.leads.filter((l) => l._sourceType === "lead").length : null;
-  const kpis = kpisFor(tf).map((k) => (k.label === "Total unique leads" && liveLeadCount !== null ? { ...k, value: String(liveLeadCount), delta: "Live from Supabase" } : k));
+  // except: the "Total unique leads" KPI tile, the CE booked/CE completed/
+  // Proposals sent/Contracts signed/Revenue KPI tiles, and the funnel
+  // conversion section — all swapped for real counts once Supabase has
+  // responded. Case-type performance, channel performance and the alert
+  // cards still need data (spend, per-case-type CE/sign tracking) we
+  // don't sync from Monday, so those stay illustrative.
+  const ready = liveLeads.status === "ready";
+  const liveLeadCount = ready ? liveLeads.leads.filter((l) => l._sourceType === "lead").length : null;
+  const liveDeals = ready ? liveLeads.leads.filter((l) => l._sourceType === "deal") : [];
+  const dealStats = ready ? aggregateDealStats(liveDeals) : null;
+
+  const liveKpiValues = ready
+    ? {
+        "Total unique leads": String(liveLeadCount),
+        "CE booked": String(dealStats.ceBooked),
+        "CE completed": String(dealStats.ceCompleted),
+        "Proposals sent": String(dealStats.proposalSent),
+        "Contracts signed": String(dealStats.contractSigned),
+        "Revenue": `$${dealStats.revenue.toLocaleString()}`,
+      }
+    : {};
+  const kpis = kpisFor(tf).map((k) =>
+    liveKpiValues[k.label] !== undefined ? { ...k, value: liveKpiValues[k.label], delta: "Live from Supabase" } : k,
+  );
+
+  const funnel = ready ? buildLiveFunnel(liveLeadCount, dealStats) : FUNNEL;
+  const unmatchedFieldLabels = dealStats && dealStats.dealCount > 0 ? dealStats.unmatched.map((k) => FIELD_LABELS[k]) : [];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
@@ -26,14 +81,23 @@ export default function Dashboard({ tf, showTargets }) {
         ))}
       </div>
 
+      {unmatchedFieldLabels.length > 0 && (
+        <div style={{ ...card, padding: "var(--space-4) var(--space-5)", border: "1px solid var(--brill-orange)" }}>
+          <span style={{ fontSize: 13, color: "var(--fg-2)", lineHeight: 1.5 }}>
+            Couldn't find a Monday column matching: <b>{unmatchedFieldLabels.join(", ")}</b> on any synced deal. Those figures may
+            read 0 above — check the column titles on the Deals board match, or that the import has synced them.
+          </span>
+        </div>
+      )}
+
       <div style={{ display: "grid", gridTemplateColumns: "1.1fr 1fr", gap: "var(--space-5)" }}>
         <section style={{ ...card, padding: "var(--space-5)", display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
           <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "var(--space-3)" }}>
             <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>Funnel conversion</h2>
-            <span style={{ fontSize: 13, color: "var(--fg-3)" }}>{tfLabel}</span>
+            <span style={{ fontSize: 13, color: "var(--fg-3)" }}>{ready ? "Live from Supabase" : tfLabel}</span>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
-            {FUNNEL.map((f) => (
+            {funnel.map((f) => (
               <div key={f.label} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "var(--space-3)", fontSize: 14 }}>
                   <span style={{ fontWeight: 500 }}>{f.label}</span>
