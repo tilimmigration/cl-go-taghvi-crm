@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Sidebar from "./components/Sidebar.jsx";
 import Header from "./components/Header.jsx";
 import Login from "./views/Login.jsx";
@@ -9,6 +9,7 @@ import LeadRecord from "./views/LeadRecord.jsx";
 import FunnelMap from "./views/FunnelMap.jsx";
 import Roadmap from "./views/Roadmap.jsx";
 import { VIEWS } from "./data.js";
+import { supabase } from "./lib/supabaseClient.js";
 
 const PROPS = {
   clientName: "Taghavi Immigration Law",
@@ -17,14 +18,34 @@ const PROPS = {
   showBenchmarkTargets: true,
 };
 
-const AUTH_KEY = "taghavi-crm-authed";
-
 export default function App() {
-  const [authed, setAuthed] = useState(() => sessionStorage.getItem(AUTH_KEY) === "true");
+  // undefined = still checking for an existing session; null = signed out.
+  // The session is owned by Supabase Auth (persisted in localStorage by
+  // supabase-js and refreshed automatically). The old sessionStorage flag
+  // that gated the UI without any real authentication is gone.
+  const [session, setSession] = useState(undefined);
   const [view, setView] = useState("dash");
   const [tf, setTf] = useState("month");
   const [aiTab, setAiTab] = useState("summary");
   const [leadKey, setLeadKey] = useState("ana");
+
+  useEffect(() => {
+    if (!supabase) {
+      setSession(null);
+      return;
+    }
+    let cancelled = false;
+    supabase.auth.getSession().then(({ data }) => {
+      if (!cancelled) setSession(data.session ?? null);
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession ?? null);
+    });
+    return () => {
+      cancelled = true;
+      listener.subscription.unsubscribe();
+    };
+  }, []);
 
   const v = VIEWS[view];
 
@@ -33,19 +54,18 @@ export default function App() {
     setView("record");
   }
 
-  function handleLoginSuccess() {
-    sessionStorage.setItem(AUTH_KEY, "true");
-    setAuthed(true);
-  }
-
-  function handleLogout() {
-    sessionStorage.removeItem(AUTH_KEY);
-    setAuthed(false);
+  async function handleLogout() {
+    if (supabase) await supabase.auth.signOut();
+    setSession(null);
     setView("dash");
   }
 
-  if (!authed) {
-    return <Login clientName={PROPS.clientName} onSuccess={handleLoginSuccess} />;
+  if (session === undefined) {
+    return <div style={{ minHeight: "100vh", background: "var(--brill-navy)" }} />;
+  }
+
+  if (!session) {
+    return <Login clientName={PROPS.clientName} onSuccess={setSession} />;
   }
 
   return (

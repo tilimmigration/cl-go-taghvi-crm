@@ -191,6 +191,12 @@ export default function Pipeline({ showDedupeFlags, onOpenLead }) {
           <span style={{ fontSize: 14, color: "var(--brill-wine)" }}>Couldn't load leads: {liveLeads.error}</span>
         )}
 
+        {liveLeads.status === "not_authorized" && (
+          <span style={{ fontSize: 14, color: "var(--brill-wine)" }}>
+            You're signed in, but this account isn't authorized to view leads. Ask Brill Media to add your email to the CRM access list.
+          </span>
+        )}
+
         {liveLeads.status === "ready" && liveLeads.leads.length === 0 && (
           <span style={{ fontSize: 14, color: "var(--fg-3)" }}>
             No leads yet. Leads will appear here automatically once Monday.com data is imported.

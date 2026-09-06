@@ -1,28 +1,36 @@
 import { useState } from "react";
+import { supabase, isSupabaseConfigured } from "../lib/supabaseClient.js";
 
-const CREDENTIALS = { username: "admin", password: "FCmEfhJSbYrDTS0G5nY7" };
-
+// Sign-in backed by Supabase Auth (email + password). The previous version
+// compared against credentials hardcoded in this file, which shipped to
+// every visitor in the JS bundle. Access to lead data is decided by Row
+// Level Security in Postgres (see supabase/migrations/), not here.
 export default function Login({ clientName, onSuccess }) {
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
+    if (!isSupabaseConfigured) {
+      setError("Sign-in is not available: Supabase is not configured for this deployment.");
+      return;
+    }
     setSubmitting(true);
     setError("");
 
-    const ok = username === CREDENTIALS.username && password === CREDENTIALS.password;
+    const { data, error: signInError } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
 
-    window.setTimeout(() => {
-      setSubmitting(false);
-      if (ok) {
-        onSuccess();
-      } else {
-        setError("Incorrect username or password.");
-      }
-    }, 250);
+    setSubmitting(false);
+    if (signInError) {
+      setError(signInError.message || "Incorrect email or password.");
+      return;
+    }
+    onSuccess?.(data.session);
   }
 
   return (
@@ -69,14 +77,15 @@ export default function Login({ clientName, onSuccess }) {
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
           <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <span style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--fg-3)" }}>
-              Username
+              Email
             </span>
             <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               autoComplete="username"
               autoFocus
+              required
               style={{
                 fontFamily: "inherit",
                 fontSize: 15,
@@ -99,6 +108,7 @@ export default function Login({ clientName, onSuccess }) {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="current-password"
+              required
               style={{
                 fontFamily: "inherit",
                 fontSize: 15,
@@ -139,7 +149,7 @@ export default function Login({ clientName, onSuccess }) {
         </button>
 
         <span style={{ fontSize: 12, color: "var(--fg-3)", textAlign: "center", lineHeight: 1.5 }}>
-          Concept dashboard · access restricted to the Taghavi and Brill Media teams
+          Access restricted to the Taghavi and Brill Media teams
         </span>
       </form>
     </div>

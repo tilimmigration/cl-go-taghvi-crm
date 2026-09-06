@@ -56,6 +56,23 @@ const LINKED_RECORD_COLUMNS = [
   "updated_at",
 ].join(", ");
 
+/**
+ * True when the signed-in user's email has a row in crm_allowed_users.
+ * RLS on that table only ever exposes the caller's own row, so this is a
+ * yes/no lookup, not a way to list who else has access.
+ */
+async function isAllowlisted() {
+  const { data: userData } = await supabase.auth.getUser();
+  const email = userData?.user?.email?.toLowerCase();
+  if (!email) return false;
+  const { data, error } = await supabase
+    .from("crm_allowed_users")
+    .select("email")
+    .eq("email", email)
+    .maybeSingle();
+  return !error && Boolean(data);
+}
+
 async function fetchTable(table, columns) {
   const { data, error } = await supabase
     .from(table)
@@ -70,12 +87,15 @@ async function fetchTable(table, columns) {
  * crm_deals, merged into one list sorted newest-first, each tagged with
  * `_sourceType` ("lead" | "call" | "deal").
  *
- * Returns `{ leads, error, configured }` rather than throwing, so callers
- * can render a clear state for each case:
+ * Returns `{ leads, error, configured, authorized }` rather than throwing,
+ * so callers can render a clear state for each case:
  *   - configured: false  -> Supabase env vars aren't set yet
- *   - error: <message>   -> the Leads table itself errored (e.g. RLS) —
- *     treated as fatal, since Leads is the primary source
- *   - leads: []           -> connected fine, there's just no data yet
+ *   - error: <message>   -> the Leads table itself errored — treated as
+ *     fatal, since Leads is the primary source
+ *   - authorized: false  -> signed in, but this account's email is not on
+ *     the crm_allowed_users allowlist, so RLS returns no rows. Told apart
+ *     from "no data yet" by checking the allowlist for the current user.
+ *   - leads: []           -> connected and authorized, just no data yet
  *
  * A crm_calls/crm_deals-specific error is logged but non-fatal — Leads
  * still renders normally even if, say, only the Leads migration has run
@@ -83,13 +103,19 @@ async function fetchTable(table, columns) {
  */
 export async function fetchLeads() {
   if (!isSupabaseConfigured) {
-    return { leads: [], error: null, configured: false };
+    return { leads: [], error: null, configured: false, authorized: false };
   }
 
   try {
     const leadsResult = await fetchTable("crm_leads", LEAD_COLUMNS);
     if (leadsResult.error) {
-      return { leads: [], error: leadsResult.error.message, configured: true };
+      return { leads: [], error: leadsResult.error.message, configured: true, authorized: true };
+    }
+    // RLS hides rows rather than erroring, so an empty result is ambiguous:
+    // no leads yet, or this account isn't allowlisted. Check the allowlist
+    // only in the empty case to keep the common path to one round trip.
+    if (leadsResult.data.length === 0 && !(await isAllowlisted())) {
+      return { leads: [], error: null, configured: true, authorized: false };
     }
 
     const [callsResult, dealsResult] = await Promise.all([
@@ -105,12 +131,12 @@ export async function fetchLeads() {
       ...(dealsResult.error ? [] : dealsResult.data.map((r) => ({ ...r, _sourceType: "deal" }))),
     ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
-    return { leads: tagged, error: null, configured: true };
+    return { leads: tagged, error: null, configured: true, authorized: true };
   } catch (err) {
     // A thrown/rejected fetch (network failure, CORS, DNS, etc.) rather
     // than a well-formed Supabase {error} response — must still resolve
     // to a state the UI can render instead of leaving it loading forever.
-    return { leads: [], error: err instanceof Error ? err.message : String(err), configured: true };
+    return { leads: [], error: err instanceof Error ? err.message : String(err), configured: true, authorized: true };
   }
 }
 
