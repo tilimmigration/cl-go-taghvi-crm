@@ -146,4 +146,18 @@ export function leadDisplayName(lead) {
   return fromParts || lead.name || "(unnamed lead)";
 }
 
+const CE_BOOKED_STATUS = "case evaluation scheduled";
+
+/**
+ * True when a lead's Monday Status column reads "Case evaluation
+ * scheduled" — the Leads-board source of truth for the Dashboard's "CE
+ * booked" KPI. Not every scheduled case evaluation necessarily has a
+ * matching crm_deals item yet, so this counts from the Leads board
+ * directly rather than from the Deals board's group (see dealStats.js,
+ * which covers the later funnel stages that ARE read from Deals groups).
+ */
+export function isCeBookedLead(lead) {
+  return (lead.status || "").trim().toLowerCase() === CE_BOOKED_STATUS;
+}
+
 export const SOURCE_TYPE_LABELS = { lead: "Lead", call: "Call", deal: "Deal" };

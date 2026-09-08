@@ -1,6 +1,7 @@
 import { kpisFor, FUNNEL, CASE_TYPES, CHANNELS, ALERTS, TF_LABELS, NAVY, ORANGE, WINE } from "../data.js";
 import { useLeads } from "../hooks/useLeads.js";
 import { aggregateDealStats, FIELD_LABELS } from "../lib/dealStats.js";
+import { isCeBookedLead } from "../lib/leads.js";
 
 const card = { background: "var(--surface-raised)", borderRadius: "var(--radius-md)", boxShadow: "var(--shadow-sm)" };
 
@@ -14,10 +15,10 @@ function verdictFor(ratePct, targetPct) {
 }
 
 /** Builds the funnel-shaped rows the UI expects (same shape as data.js's mock FUNNEL) from real counts. */
-function buildLiveFunnel(totalLeads, deals) {
+function buildLiveFunnel(totalLeads, ceBooked, deals) {
   const stages = [
-    { label: "Leads → CE booked", num: deals.ceBooked, den: totalLeads, target: 40, bar: NAVY },
-    { label: "CE booked → CE completed", num: deals.ceCompleted, den: deals.ceBooked, target: 80, bar: WINE },
+    { label: "Leads → CE booked", num: ceBooked, den: totalLeads, target: 40, bar: NAVY },
+    { label: "CE booked → CE completed", num: deals.ceCompleted, den: ceBooked, target: 80, bar: WINE },
     { label: "CE completed → proposal sent", num: deals.proposalSent, den: deals.ceCompleted, target: 90, bar: NAVY },
     { label: "Proposal sent → signed", num: deals.contractSigned, den: deals.proposalSent, target: 45, bar: NAVY },
     { label: "Overall lead → signed", num: deals.contractSigned, den: totalLeads, target: 10, bar: ORANGE },
@@ -47,15 +48,21 @@ export default function Dashboard({ tf, showTargets }) {
   // responded. Case-type performance, channel performance and the alert
   // cards still need data (spend, per-case-type CE/sign tracking) we
   // don't sync from Monday, so those stay illustrative.
+  //
+  // CE booked is read from the Leads board (status "Case evaluation
+  // scheduled"); CE completed/proposals/signed/revenue come from the
+  // Deals board instead — see lib/leads.js and lib/dealStats.js.
   const ready = liveLeads.status === "ready";
-  const liveLeadCount = ready ? liveLeads.leads.filter((l) => l._sourceType === "lead").length : null;
+  const liveLeadRecords = ready ? liveLeads.leads.filter((l) => l._sourceType === "lead") : [];
+  const liveLeadCount = ready ? liveLeadRecords.length : null;
   const liveDeals = ready ? liveLeads.leads.filter((l) => l._sourceType === "deal") : [];
   const dealStats = ready ? aggregateDealStats(liveDeals) : null;
+  const ceBookedCount = ready ? liveLeadRecords.filter(isCeBookedLead).length : null;
 
   const liveKpiValues = ready
     ? {
         "Total unique leads": String(liveLeadCount),
-        "CE booked": String(dealStats.ceBooked),
+        "CE booked": String(ceBookedCount),
         "CE completed": String(dealStats.ceCompleted),
         "Proposals sent": String(dealStats.proposalSent),
         "Contracts signed": String(dealStats.contractSigned),
@@ -66,8 +73,12 @@ export default function Dashboard({ tf, showTargets }) {
     liveKpiValues[k.label] !== undefined ? { ...k, value: liveKpiValues[k.label], delta: "Live from Supabase" } : k,
   );
 
-  const funnel = ready ? buildLiveFunnel(liveLeadCount, dealStats) : FUNNEL;
-  const unmatchedFieldLabels = dealStats && dealStats.dealCount > 0 ? dealStats.unmatched.map((k) => FIELD_LABELS[k]) : [];
+  const funnel = ready ? buildLiveFunnel(liveLeadCount, ceBookedCount, dealStats) : FUNNEL;
+  const unmatchedKeys = [
+    ...(dealStats && dealStats.dealCount > 0 ? dealStats.unmatched : []),
+    ...(ready && liveLeadCount > 0 && ceBookedCount === 0 ? ["ceBooked"] : []),
+  ];
+  const unmatchedFieldLabels = unmatchedKeys.map((k) => FIELD_LABELS[k]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
