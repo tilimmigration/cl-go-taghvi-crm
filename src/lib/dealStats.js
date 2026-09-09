@@ -1,21 +1,25 @@
-// Extracts CE completed / proposal sent / contract signed from each
-// crm_deals row's Monday GROUP — the Kanban-style stage bucket a deal
-// currently sits in, already synced as monday_group_title (see
-// supabase/migrations/20260903000000_calls_and_deals.sql). These stages
-// are NOT separate Monday columns on the Deals board, they are literal
-// group names. Revenue, by contrast, IS a column, so it's still read
-// from custom_fields (columns not covered by the shared mapper's
+// Extracts CE booked / CE completed / proposal sent / contract signed
+// from each crm_deals row's Monday GROUP — the Kanban-style stage bucket
+// a deal currently sits in, already synced as monday_group_title (see
+// supabase/migrations/20260903000000_calls_and_deals.sql). These four
+// stages are NOT separate Monday columns on the Deals board, they are
+// literal group names. Revenue, by contrast, IS a column, so it's still
+// read from custom_fields (columns not covered by the shared mapper's
 // DEFAULT_TITLE_MAP land there keyed by column id, as
 // { title, type, text, value } — see
 // supabase/functions/_shared/monday/mapper.ts).
 //
-// CE booked is deliberately NOT computed here, even though it's the
-// first stage of the same funnel: it's read from the Leads board's
-// Status column ("Case evaluation scheduled") instead, via
-// isCeBookedLead() in lib/leads.js — see that file for why.
+// CE booked on the Dashboard is the SUM of two sources, not this file's
+// ceBooked alone: crm_leads whose Status is "Case evaluation scheduled"
+// (isCeBookedLead() in lib/leads.js) PLUS crm_deals currently in this
+// file's "Case Evaluation Booked" group. The two boards aren't
+// guaranteed to stay in lockstep (a deal can sit in that group without
+// its originating lead's status still reading "scheduled"), so both are
+// counted rather than picking one — see Dashboard.jsx.
 //
 // Group names are matched by exact title (case-insensitive, trimmed) —
 // confirmed against the real Taghavi Deals board on 2026-09-03:
+//   CE booked          -> "Case Evaluation Booked"
 //   CE completed       -> "Case Evaluation Completed"
 //   Proposal sent       -> "Proposal (ST to Review)"
 //   Contracts signed    -> "Signed up"
@@ -24,7 +28,7 @@
 // IMPORTANT — these are CURRENT-STAGE counts (how many deals are sitting
 // in that group right now), not cumulative "ever reached this stage"
 // funnel counts: a deal that has since moved on to "Signed up" is no
-// longer counted under "Case Evaluation Completed" even though it passed
+// longer counted under "Case Evaluation Booked" even though it passed
 // through it. True cumulative funnel counts would need the full ordered
 // list of every group on the board (including non-funnel ones like
 // "Case Evaluation Missed"/"Cancelled") to know which groups represent
@@ -33,6 +37,7 @@
 // strict conversion-rate funnel.
 
 const STAGE_GROUPS = {
+  ceBooked: "case evaluation booked",
   ceCompleted: "case evaluation completed",
   proposalSent: "proposal (st to review)",
   contractSigned: "signed up",
@@ -76,6 +81,7 @@ export function extractDealMetrics(deal) {
   const group = groupOf(deal);
   const revenueField = findField(deal.custom_fields, REVENUE_KEYWORDS);
   return {
+    ceBooked: group === STAGE_GROUPS.ceBooked,
     ceCompleted: group === STAGE_GROUPS.ceCompleted,
     proposalSent: group === STAGE_GROUPS.proposalSent,
     contractSigned: group === STAGE_GROUPS.contractSigned,
@@ -93,12 +99,13 @@ export function extractDealMetrics(deal) {
  * had a column recognizable as "Revenue".
  */
 export function aggregateDealStats(deals) {
-  const totals = { ceCompleted: 0, proposalSent: 0, contractSigned: 0, revenue: 0 };
+  const totals = { ceBooked: 0, ceCompleted: 0, proposalSent: 0, contractSigned: 0, revenue: 0 };
   const seenGroups = new Set(deals.map(groupOf).filter(Boolean));
   let revenueFoundAny = false;
 
   for (const deal of deals) {
     const m = extractDealMetrics(deal);
+    if (m.ceBooked) totals.ceBooked++;
     if (m.ceCompleted) totals.ceCompleted++;
     if (m.proposalSent) totals.proposalSent++;
     if (m.contractSigned) totals.contractSigned++;
