@@ -1,6 +1,6 @@
 import { kpisFor, FUNNEL, CASE_TYPES, CHANNELS, ALERTS, TF_LABELS, NAVY, ORANGE, WINE } from "../data.js";
 import { useLeads } from "../hooks/useLeads.js";
-import { aggregateDealStats, FIELD_LABELS } from "../lib/dealStats.js";
+import { aggregateDealStats } from "../lib/dealStats.js";
 import { isCeBookedLead } from "../lib/leads.js";
 
 const card = { background: "var(--surface-raised)", borderRadius: "var(--radius-md)", boxShadow: "var(--shadow-sm)" };
@@ -74,18 +74,10 @@ export default function Dashboard({ tf, showTargets }) {
       }
     : {};
   const kpis = kpisFor(tf).map((k) =>
-    liveKpiValues[k.label] !== undefined ? { ...k, value: liveKpiValues[k.label], delta: "Live from Supabase" } : k,
+    liveKpiValues[k.label] !== undefined ? { ...k, value: liveKpiValues[k.label], delta: "Live from Monday.com" } : k,
   );
 
   const funnel = ready ? buildLiveFunnel(liveLeadCount, ceBookedCount, dealStats) : FUNNEL;
-  // Both sources are checked, but "ceBooked" is only worth flagging when
-  // NEITHER found a match — one side legitimately having zero (e.g. no
-  // deals imported yet) isn't a naming-mismatch signal on its own.
-  const unmatchedKeys = new Set([
-    ...(dealStats && dealStats.dealCount > 0 ? dealStats.unmatched : []),
-    ...(ready && liveLeadCount > 0 && ceBookedCount === 0 ? ["ceBooked"] : []),
-  ]);
-  const unmatchedFieldLabels = [...unmatchedKeys].map((k) => FIELD_LABELS[k]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
@@ -98,15 +90,6 @@ export default function Dashboard({ tf, showTargets }) {
           </div>
         ))}
       </div>
-
-      {unmatchedFieldLabels.length > 0 && (
-        <div style={{ ...card, padding: "var(--space-4) var(--space-5)", border: "1px solid var(--brill-orange)" }}>
-          <span style={{ fontSize: 13, color: "var(--fg-2)", lineHeight: 1.5 }}>
-            Couldn't find a Monday column matching: <b>{unmatchedFieldLabels.join(", ")}</b> on any synced deal. Those figures may
-            read 0 above — check the column titles on the Deals board match, or that the import has synced them.
-          </span>
-        </div>
-      )}
 
       <div style={{ display: "grid", gridTemplateColumns: "1.1fr 1fr", gap: "var(--space-5)" }}>
         <section style={{ ...card, padding: "var(--space-5)", display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
