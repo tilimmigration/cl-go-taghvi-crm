@@ -49,15 +49,19 @@ export default function Dashboard({ tf, showTargets }) {
   // cards still need data (spend, per-case-type CE/sign tracking) we
   // don't sync from Monday, so those stay illustrative.
   //
-  // CE booked is read from the Leads board (status "Case evaluation
-  // scheduled"); CE completed/proposals/signed/revenue come from the
-  // Deals board instead — see lib/leads.js and lib/dealStats.js.
+  // CE booked sums two sources: crm_leads with status "Case evaluation
+  // scheduled" (Leads board) plus crm_deals currently in the "Case
+  // Evaluation Booked" group (Deals board) — the two boards aren't
+  // guaranteed to stay in lockstep, so both count. CE completed/
+  // proposals/signed/revenue come from the Deals board only — see
+  // lib/leads.js and lib/dealStats.js.
   const ready = liveLeads.status === "ready";
   const liveLeadRecords = ready ? liveLeads.leads.filter((l) => l._sourceType === "lead") : [];
   const liveLeadCount = ready ? liveLeadRecords.length : null;
   const liveDeals = ready ? liveLeads.leads.filter((l) => l._sourceType === "deal") : [];
   const dealStats = ready ? aggregateDealStats(liveDeals) : null;
-  const ceBookedCount = ready ? liveLeadRecords.filter(isCeBookedLead).length : null;
+  const leadsCeBookedCount = ready ? liveLeadRecords.filter(isCeBookedLead).length : null;
+  const ceBookedCount = ready ? leadsCeBookedCount + dealStats.ceBooked : null;
 
   const liveKpiValues = ready
     ? {
@@ -74,11 +78,14 @@ export default function Dashboard({ tf, showTargets }) {
   );
 
   const funnel = ready ? buildLiveFunnel(liveLeadCount, ceBookedCount, dealStats) : FUNNEL;
-  const unmatchedKeys = [
+  // Both sources are checked, but "ceBooked" is only worth flagging when
+  // NEITHER found a match — one side legitimately having zero (e.g. no
+  // deals imported yet) isn't a naming-mismatch signal on its own.
+  const unmatchedKeys = new Set([
     ...(dealStats && dealStats.dealCount > 0 ? dealStats.unmatched : []),
     ...(ready && liveLeadCount > 0 && ceBookedCount === 0 ? ["ceBooked"] : []),
-  ];
-  const unmatchedFieldLabels = unmatchedKeys.map((k) => FIELD_LABELS[k]);
+  ]);
+  const unmatchedFieldLabels = [...unmatchedKeys].map((k) => FIELD_LABELS[k]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
