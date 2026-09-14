@@ -11,6 +11,18 @@
 // is independent: one board failing doesn't prevent the others from
 // running.
 //
+// Optional request body field `boards`: an array of "leads"/"calls"/
+// "deals" to run only those boards, e.g. {"boards": ["deals"]}. Omit it
+// (or send no body) to run every configured board, unchanged from
+// before. Exists because all three otherwise always run in one request,
+// in that order — on a large board this can exhaust the Edge Function's
+// wall-clock/idle limit before later boards get a turn, and every retry
+// would burn time re-running earlier boards that already succeeded.
+// {"boards": ["deals"]} skips straight to Deals, and — since every write
+// here is an idempotent upsert keyed on the Monday item id — is safe to
+// re-run repeatedly to make incremental progress on a board too large
+// for one run.
+//
 // Meant to be triggered manually (curl, or Supabase dashboard "Invoke
 // function") by someone with backend access — NOT by the browser, and
 // NOT automatically. Per scope: no webhook, no scheduling, no real-time
@@ -89,14 +101,19 @@ export async function handleImportRequest(req: Request, overrides: HandleImportO
   }
 
   let pageSize: number | undefined;
+  let boards: Set<string> | undefined;
   try {
     const body = await req.json();
     if (typeof body?.pageSize === "number" && body.pageSize > 0) {
       pageSize = body.pageSize;
     }
+    if (Array.isArray(body?.boards) && body.boards.length > 0) {
+      boards = new Set(body.boards);
+    }
   } catch {
-    // No/empty body is fine — pageSize just falls back to the client default.
+    // No/empty body is fine — pageSize/boards just fall back to running every configured board.
   }
+  const shouldRun = (board: "leads" | "calls" | "deals") => !boards || boards.has(board);
 
   let supabase: SupabaseClientLike;
   if (overrides.supabaseClient) {
@@ -113,10 +130,12 @@ export async function handleImportRequest(req: Request, overrides: HandleImportO
   let calls: ImportSummary | null = null;
   let deals: ImportSummary | null = null;
 
-  try {
-    leads = await runLeadImport({ mondayClient, supabase, boardId: config.leadsBoardId, columnIdMapJson: config.columnIdMapJson, pageSize });
-  } catch (err) {
-    errors.push(describeError("leads", err));
+  if (shouldRun("leads")) {
+    try {
+      leads = await runLeadImport({ mondayClient, supabase, boardId: config.leadsBoardId, columnIdMapJson: config.columnIdMapJson, pageSize });
+    } catch (err) {
+      errors.push(describeError("leads", err));
+    }
   }
 
   async function importLinked(table: LinkedRecordTable, boardId: string | undefined): Promise<ImportSummary | null> {
@@ -137,8 +156,8 @@ export async function handleImportRequest(req: Request, overrides: HandleImportO
     }
   }
 
-  calls = await importLinked("crm_calls", config.callsBoardId);
-  deals = await importLinked("crm_deals", config.dealsBoardId);
+  if (shouldRun("calls")) calls = await importLinked("crm_calls", config.callsBoardId);
+  if (shouldRun("deals")) deals = await importLinked("crm_deals", config.dealsBoardId);
 
   const body = {
     leads,

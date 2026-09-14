@@ -147,6 +147,41 @@ test("accepts an optional pageSize override in the request body", async () => {
   assert.equal(capturedPageSize, 250);
 });
 
+test("an optional `boards` filter runs only the listed boards, skipping the rest entirely", async () => {
+  const CALLS_BOARD_ID = "222333444";
+  const DEALS_BOARD_ID = "333444555";
+  const supabase = createFakeSupabaseClient();
+
+  const mondayClient = createFakeMondayClient({
+    boardMetaByBoardId: {
+      [BOARD_ID]: buildMondayBoardMeta({ boardId: BOARD_ID, boardName: "Lead Tracker" }),
+      [CALLS_BOARD_ID]: buildMondayBoardMeta({ boardId: CALLS_BOARD_ID, boardName: "Call Log Tracker" }),
+      [DEALS_BOARD_ID]: buildMondayBoardMeta({ boardId: DEALS_BOARD_ID, boardName: "Deals" }),
+    },
+    pagesByBoardId: {
+      [BOARD_ID]: [[buildMondayItem({ id: "1", name: "Ana", board: { id: BOARD_ID } })]],
+      [CALLS_BOARD_ID]: [[buildMondayItem({ id: "101", name: "Call with Ana", board: { id: CALLS_BOARD_ID } })]],
+      [DEALS_BOARD_ID]: [[buildMondayItem({ id: "201", name: "Ana — Family case", board: { id: DEALS_BOARD_ID } })]],
+    },
+  });
+
+  const res = await handleImportRequest(postRequest({ boards: ["deals"] }, { Authorization: `Bearer ${SERVICE_ROLE_KEY}` }), {
+    config: baseConfig({ callsBoardId: CALLS_BOARD_ID, dealsBoardId: DEALS_BOARD_ID }),
+    supabaseClient: supabase,
+    mondayClient,
+  });
+
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.leads, null, "leads not requested — should be skipped, not attempted");
+  assert.equal(body.calls, null, "calls not requested — should be skipped, not attempted");
+  assert.equal(body.deals.createdCount, 1);
+
+  assert.ok(!supabase.tables.crm_leads, "leads board was never even queried");
+  assert.ok(!supabase.tables.crm_calls, "calls board was never even queried");
+  assert.equal(supabase.tables.crm_deals.length, 1);
+});
+
 test("works with an empty/missing request body (pageSize falls back to the client default)", async () => {
   const supabase = createFakeSupabaseClient();
   const mondayClient = createFakeMondayClient({ boardMeta: buildMondayBoardMeta({ boardId: BOARD_ID }), pages: [] });
