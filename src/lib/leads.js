@@ -73,13 +73,31 @@ async function isAllowlisted() {
   return !error && Boolean(data);
 }
 
+// Supabase/PostgREST caps a single response at the project's "Max rows"
+// setting (1000 by default). crm_deals alone is already past that as the
+// Monday Deals board has grown, so a plain select silently drops the
+// overflow and the Dashboard undercounts (e.g. "Contracts signed"). Page
+// through with .range() until a short page returns, so every active row is
+// counted no matter how large a board gets. created_at is not unique, so
+// id is added as a stable tiebreaker to keep the page boundaries from
+// skipping or duplicating rows.
+const FETCH_PAGE_SIZE = 1000;
+
 async function fetchTable(table, columns) {
-  const { data, error } = await supabase
-    .from(table)
-    .select(columns)
-    .eq("is_deleted", false)
-    .order("created_at", { ascending: false });
-  return { data: data ?? [], error };
+  const rows = [];
+  for (let from = 0; ; from += FETCH_PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from(table)
+      .select(columns)
+      .eq("is_deleted", false)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .range(from, from + FETCH_PAGE_SIZE - 1);
+    if (error) return { data: rows, error };
+    if (data?.length) rows.push(...data);
+    if (!data || data.length < FETCH_PAGE_SIZE) break;
+  }
+  return { data: rows, error: null };
 }
 
 /**
