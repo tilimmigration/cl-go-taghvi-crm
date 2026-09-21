@@ -18,24 +18,24 @@
 // counted rather than picking one — see Dashboard.jsx.
 //
 // Group names are matched by exact title (case-insensitive, trimmed).
-// Confirmed against the real Taghavi "Deals🤝" board on 2026-09-21, whose
-// live groups are: "New Leads", "Consultation Required", "Consultation
-// Booked", "Case Evaluation Booked", "Case Evaluation Follow Up Required",
-// "Case Evaluation Missed", "Pending Acceptance" and "Signed up".
+// Mapping confirmed with the client against the real Taghavi "Deals🤝"
+// board on 2026-09-21 — the four Dashboard funnel stages line up with
+// these board groups, in pipeline order:
 //   CE booked          -> "Case Evaluation Booked"
-//   Proposal sent       -> "Pending Acceptance"  (a proposal has gone out
-//                          and is awaiting the client's acceptance — this
-//                          is the board's real "proposal sent" stage)
+//   CE completed       -> "Proposal (ST to Review)"  (case evaluation is
+//                          done and the proposal is in internal review)
+//   Proposal sent       -> "Pending Acceptance"       (proposal is out and
+//                          awaiting the client's acceptance)
 //   Contracts signed    -> "Signed up"
 // If the board's group names ever change, update STAGE_GROUPS below.
 //
-// CE completed has NO matching group on the current board (the pipeline
-// jumps CE booked -> Pending Acceptance/Signed up, with completed CEs
-// landing in "Follow Up Required"/"Missed" rather than a dedicated
-// "completed" bucket), so `ceCompleted` below matches nothing and reads 0.
-// It is left in place — and surfaced via `unmatched` — so the gap is
-// visible rather than silently dropped; point it at a real group once the
-// board grows one.
+// Note: a stage reads 0 whenever no synced deal currently sits in its
+// group — which can also mean the board is only partially synced (the
+// bulk import can be truncated by the Edge Function time limit on a large
+// board). "Proposal (ST to Review)" in particular may report 0 until a
+// complete import lands its deals. Any group name that never appears on a
+// synced deal is surfaced via `unmatched` so a true naming mismatch stays
+// visible rather than silently reading 0.
 //
 // IMPORTANT — these are CURRENT-STAGE counts (how many deals are sitting
 // in that group right now), not cumulative "ever reached this stage"
@@ -50,7 +50,7 @@
 
 const STAGE_GROUPS = {
   ceBooked: "case evaluation booked",
-  ceCompleted: "case evaluation completed",
+  ceCompleted: "proposal (st to review)",
   proposalSent: "pending acceptance",
   contractSigned: "signed up",
 };
