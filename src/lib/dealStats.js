@@ -17,13 +17,25 @@
 // its originating lead's status still reading "scheduled"), so both are
 // counted rather than picking one — see Dashboard.jsx.
 //
-// Group names are matched by exact title (case-insensitive, trimmed) —
-// confirmed against the real Taghavi Deals board on 2026-09-03:
+// Group names are matched by exact title (case-insensitive, trimmed).
+// Confirmed against the real Taghavi "Deals🤝" board on 2026-09-21, whose
+// live groups are: "New Leads", "Consultation Required", "Consultation
+// Booked", "Case Evaluation Booked", "Case Evaluation Follow Up Required",
+// "Case Evaluation Missed", "Pending Acceptance" and "Signed up".
 //   CE booked          -> "Case Evaluation Booked"
-//   CE completed       -> "Case Evaluation Completed"
-//   Proposal sent       -> "Proposal (ST to Review)"
+//   Proposal sent       -> "Pending Acceptance"  (a proposal has gone out
+//                          and is awaiting the client's acceptance — this
+//                          is the board's real "proposal sent" stage)
 //   Contracts signed    -> "Signed up"
 // If the board's group names ever change, update STAGE_GROUPS below.
+//
+// CE completed has NO matching group on the current board (the pipeline
+// jumps CE booked -> Pending Acceptance/Signed up, with completed CEs
+// landing in "Follow Up Required"/"Missed" rather than a dedicated
+// "completed" bucket), so `ceCompleted` below matches nothing and reads 0.
+// It is left in place — and surfaced via `unmatched` — so the gap is
+// visible rather than silently dropped; point it at a real group once the
+// board grows one.
 //
 // IMPORTANT — these are CURRENT-STAGE counts (how many deals are sitting
 // in that group right now), not cumulative "ever reached this stage"
@@ -39,7 +51,7 @@
 const STAGE_GROUPS = {
   ceBooked: "case evaluation booked",
   ceCompleted: "case evaluation completed",
-  proposalSent: "proposal (st to review)",
+  proposalSent: "pending acceptance",
   contractSigned: "signed up",
 };
 
