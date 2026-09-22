@@ -13,7 +13,7 @@ class FakeQueryBuilder {
   private op: "select" | "upsert" | "update" | "insert" = "select";
   private payload: Row | Row[] | null = null;
   private onConflict: string[] = [];
-  private filters: Array<[string, unknown]> = [];
+  private filters: Array<{ col: string; op: "eq" | "in" | "lt"; val: unknown }> = [];
   private wantSingle = false;
   private wantMaybeSingle = false;
   private wantCount = false;
@@ -32,7 +32,15 @@ class FakeQueryBuilder {
     return this;
   }
   eq(col: string, val: unknown) {
-    this.filters.push([col, val]);
+    this.filters.push({ col, op: "eq", val });
+    return this;
+  }
+  in(col: string, vals: unknown[]) {
+    this.filters.push({ col, op: "in", val: vals });
+    return this;
+  }
+  lt(col: string, val: unknown) {
+    this.filters.push({ col, op: "lt", val });
     return this;
   }
   upsert(row: Row | Row[], opts?: { onConflict?: string }) {
@@ -68,7 +76,13 @@ class FakeQueryBuilder {
   }
 
   private matched(): Row[] {
-    return this.rows.filter((r) => this.filters.every(([col, val]) => r[col] === val));
+    return this.rows.filter((r) =>
+      this.filters.every((f) => {
+        if (f.op === "in") return Array.isArray(f.val) && (f.val as unknown[]).includes(r[f.col]);
+        if (f.op === "lt") return (r[f.col] as string | number) < (f.val as string | number);
+        return r[f.col] === f.val;
+      }),
+    );
   }
 
   private async run(): Promise<{ data: unknown; error: unknown; count?: number }> {
