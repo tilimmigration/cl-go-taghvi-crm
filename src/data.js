@@ -63,7 +63,7 @@ export const KPI_SETS = {
   week: [
     ["Total unique leads", "21", "+11% vs prior week", 1],
     ["CE booked", "8", "+14%", 1],
-    ["CE completed", "5", "−4%", -1],
+    ["Proposal Pending Acceptance", "5", "−4%", -1],
     ["Proposals sent", "4", "+33%", 1],
     ["Contracts signed", "2", "Flat", 0],
     ["Revenue", "$12,800", "+18%", 1],
@@ -71,7 +71,7 @@ export const KPI_SETS = {
   month: [
     ["Total unique leads", "84", "+18% vs last month", 1],
     ["CE booked", "31", "+29%", 1],
-    ["CE completed", "19", "+12%", 1],
+    ["Proposal Pending Acceptance", "19", "+12%", 1],
     ["Proposals sent", "14", "+27%", 1],
     ["Contracts signed", "6", "+20%", 1],
     ["Revenue", "$47,400", "+22%", 1],
@@ -79,7 +79,7 @@ export const KPI_SETS = {
   quarter: [
     ["Total unique leads", "231", "+9% vs prior quarter", 1],
     ["CE booked", "88", "+6%", 1],
-    ["CE completed", "57", "−3%", -1],
+    ["Proposal Pending Acceptance", "57", "−3%", -1],
     ["Proposals sent", "41", "+11%", 1],
     ["Contracts signed", "18", "+13%", 1],
     ["Revenue", "$142,600", "+15%", 1],

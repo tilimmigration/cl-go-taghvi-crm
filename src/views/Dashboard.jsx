@@ -67,7 +67,10 @@ export default function Dashboard({ tf, showTargets }) {
     ? {
         "Total unique leads": String(liveLeadCount),
         "CE booked": String(ceBookedCount),
-        "CE completed": String(dealStats.ceCompleted),
+        // "Proposal Pending Acceptance" mirrors "Proposals sent" on
+        // purpose — both show the Deals board's "Pending Acceptance" group
+        // count, per the client's request that the two tiles read the same.
+        "Proposal Pending Acceptance": String(dealStats.proposalSent),
         "Proposals sent": String(dealStats.proposalSent),
         "Contracts signed": String(dealStats.contractSigned),
         "Revenue": `$${dealStats.revenue.toLocaleString()}`,
