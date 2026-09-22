@@ -17,13 +17,25 @@
 // its originating lead's status still reading "scheduled"), so both are
 // counted rather than picking one — see Dashboard.jsx.
 //
-// Group names are matched by exact title (case-insensitive, trimmed) —
-// confirmed against the real Taghavi Deals board on 2026-09-03:
+// Group names are matched by exact title (case-insensitive, trimmed).
+// Mapping confirmed with the client against the real Taghavi "Deals🤝"
+// board on 2026-09-21 — the four Dashboard funnel stages line up with
+// these board groups, in pipeline order:
 //   CE booked          -> "Case Evaluation Booked"
-//   CE completed       -> "Case Evaluation Completed"
-//   Proposal sent       -> "Proposal (ST to Review)"
+//   CE completed       -> "Proposal (ST to Review)"  (case evaluation is
+//                          done and the proposal is in internal review)
+//   Proposal sent       -> "Pending Acceptance"       (proposal is out and
+//                          awaiting the client's acceptance)
 //   Contracts signed    -> "Signed up"
 // If the board's group names ever change, update STAGE_GROUPS below.
+//
+// Note: a stage reads 0 whenever no synced deal currently sits in its
+// group — which can also mean the board is only partially synced (the
+// bulk import can be truncated by the Edge Function time limit on a large
+// board). "Proposal (ST to Review)" in particular may report 0 until a
+// complete import lands its deals. Any group name that never appears on a
+// synced deal is surfaced via `unmatched` so a true naming mismatch stays
+// visible rather than silently reading 0.
 //
 // IMPORTANT — these are CURRENT-STAGE counts (how many deals are sitting
 // in that group right now), not cumulative "ever reached this stage"
@@ -38,8 +50,8 @@
 
 const STAGE_GROUPS = {
   ceBooked: "case evaluation booked",
-  ceCompleted: "case evaluation completed",
-  proposalSent: "proposal (st to review)",
+  ceCompleted: "proposal (st to review)",
+  proposalSent: "pending acceptance",
   contractSigned: "signed up",
 };
 
