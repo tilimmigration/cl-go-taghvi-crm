@@ -1,4 +1,4 @@
-import { kpisFor, FUNNEL, CASE_TYPES, CHANNELS, ALERTS, TF_LABELS, NAVY, ORANGE, WINE } from "../data.js";
+import { kpisFor, FUNNEL, CASE_TYPES, CHANNELS, ALERTS, NAVY, ORANGE, WINE } from "../data.js";
 import { useLeads } from "../hooks/useLeads.js";
 import { aggregateDealStats } from "../lib/dealStats.js";
 import { isCeBookedLead } from "../lib/leads.js";
@@ -37,9 +37,25 @@ function buildLiveFunnel(totalLeads, ceBooked, deals) {
   });
 }
 
-export default function Dashboard({ tf, showTargets }) {
+/**
+ * True when a record's Monday creation date falls within the inclusive
+ * [from, to] bounds (either may be an empty string = unbounded). Records
+ * are dated by monday_created_at — the real date the lead/deal was created
+ * on Monday — not created_at, which is just when our sync first stored the
+ * row (import day). A record with no date is kept rather than dropped.
+ */
+function createdInRange(record, from, to) {
+  const raw = record.monday_created_at;
+  if (!raw) return true;
+  const day = String(raw).slice(0, 10); // "YYYY-MM-DD"
+  if (from && day < from) return false;
+  if (to && day > to) return false;
+  return true;
+}
+
+export default function Dashboard({ dateFrom, dateTo, showTargets }) {
   const liveLeads = useLeads();
-  const tfLabel = TF_LABELS[tf];
+  const rangeLabel = dateFrom || dateTo ? `${dateFrom || "earliest"} → ${dateTo || "today"}` : "All time";
 
   // Everything on this dashboard is illustrative mock data (see data.js)
   // except: the "Total unique leads" KPI tile, the CE booked/CE completed/
@@ -56,9 +72,13 @@ export default function Dashboard({ tf, showTargets }) {
   // proposals/signed/revenue come from the Deals board only — see
   // lib/leads.js and lib/dealStats.js.
   const ready = liveLeads.status === "ready";
-  const liveLeadRecords = ready ? liveLeads.leads.filter((l) => l._sourceType === "lead") : [];
+  // The date filter applies to the live KPI tiles and the funnel: a record
+  // counts only if it was created within the chosen range. (The case-type,
+  // channel and alert sections below are still illustrative and unaffected.)
+  const inRange = (l) => createdInRange(l, dateFrom, dateTo);
+  const liveLeadRecords = ready ? liveLeads.leads.filter((l) => l._sourceType === "lead" && inRange(l)) : [];
   const liveLeadCount = ready ? liveLeadRecords.length : null;
-  const liveDeals = ready ? liveLeads.leads.filter((l) => l._sourceType === "deal") : [];
+  const liveDeals = ready ? liveLeads.leads.filter((l) => l._sourceType === "deal" && inRange(l)) : [];
   const dealStats = ready ? aggregateDealStats(liveDeals) : null;
   const leadsCeBookedCount = ready ? liveLeadRecords.filter(isCeBookedLead).length : null;
   const ceBookedCount = ready ? leadsCeBookedCount + dealStats.ceBooked : null;
@@ -76,7 +96,7 @@ export default function Dashboard({ tf, showTargets }) {
         "Revenue": `$${dealStats.revenue.toLocaleString()}`,
       }
     : {};
-  const kpis = kpisFor(tf).map((k) =>
+  const kpis = kpisFor("month").map((k) =>
     liveKpiValues[k.label] !== undefined ? { ...k, value: liveKpiValues[k.label], delta: "Live from Monday.com" } : k,
   );
 
@@ -98,7 +118,7 @@ export default function Dashboard({ tf, showTargets }) {
         <section style={{ ...card, padding: "var(--space-5)", display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
           <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "var(--space-3)" }}>
             <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>Funnel conversion</h2>
-            <span style={{ fontSize: 13, color: "var(--fg-3)" }}>{ready ? "Live from Supabase — current stage" : tfLabel}</span>
+            <span style={{ fontSize: 13, color: "var(--fg-3)" }}>{ready ? `Live · current stage · ${rangeLabel}` : rangeLabel}</span>
           </div>
           {ready && (
             <span style={{ fontSize: 12, color: "var(--fg-3)", marginTop: -8 }}>

@@ -1,10 +1,17 @@
-const TIMEFRAMES = [
-  { key: "week", label: "Week" },
-  { key: "month", label: "Month" },
-  { key: "quarter", label: "Quarter" },
-];
+const DATE_INPUT_STYLE = {
+  fontFamily: "inherit",
+  fontSize: 13,
+  fontWeight: 500,
+  padding: "6px 10px",
+  border: "1px solid var(--border-subtle)",
+  borderRadius: "var(--radius-xs)",
+  background: "var(--surface-raised)",
+  color: "var(--fg-1)",
+  colorScheme: "light dark",
+};
 
-export default function Header({ overline, title, sub, showTimeframe, tf, onTf }) {
+export default function Header({ overline, title, sub, showDateFilter, dateFrom, dateTo, onDateFrom, onDateTo }) {
+  const hasRange = Boolean(dateFrom || dateTo);
   return (
     <header
       style={{
@@ -25,31 +32,59 @@ export default function Header({ overline, title, sub, showTimeframe, tf, onTf }
         <p style={{ margin: 0, fontSize: 15, color: "var(--fg-3)", maxWidth: "70ch" }}>{sub}</p>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
-        {showTimeframe && (
-          <div style={{ display: "flex", gap: 2, padding: 3, background: "var(--surface-muted)", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-subtle)" }}>
-            {TIMEFRAMES.map((t) => {
-              const active = tf === t.key;
-              return (
-                <button
-                  key={t.key}
-                  type="button"
-                  onClick={() => onTf(t.key)}
-                  style={{
-                    fontFamily: "inherit",
-                    fontSize: 13,
-                    fontWeight: 600,
-                    padding: "7px 14px",
-                    border: 0,
-                    borderRadius: "var(--radius-xs)",
-                    cursor: "pointer",
-                    background: active ? "var(--brill-navy)" : "transparent",
-                    color: active ? "#FFFFFF" : "var(--fg-2)",
-                  }}
-                >
-                  {t.label}
-                </button>
-              );
-            })}
+        {showDateFilter && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "4px 6px",
+              background: "var(--surface-muted)",
+              borderRadius: "var(--radius-sm)",
+              border: "1px solid var(--border-subtle)",
+            }}
+          >
+            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--fg-3)", whiteSpace: "nowrap" }}>Created</span>
+            <input
+              type="date"
+              aria-label="Created from"
+              value={dateFrom}
+              max={dateTo || undefined}
+              onChange={(e) => onDateFrom(e.target.value)}
+              style={DATE_INPUT_STYLE}
+            />
+            <span style={{ fontSize: 13, color: "var(--fg-3)" }}>→</span>
+            <input
+              type="date"
+              aria-label="Created to"
+              value={dateTo}
+              min={dateFrom || undefined}
+              onChange={(e) => onDateTo(e.target.value)}
+              style={DATE_INPUT_STYLE}
+            />
+            <button
+              type="button"
+              onClick={() => {
+                onDateFrom("");
+                onDateTo("");
+              }}
+              disabled={!hasRange}
+              title="Show all dates"
+              style={{
+                fontFamily: "inherit",
+                fontSize: 12,
+                fontWeight: 600,
+                padding: "6px 10px",
+                border: 0,
+                borderRadius: "var(--radius-xs)",
+                cursor: hasRange ? "pointer" : "default",
+                background: hasRange ? "var(--brill-navy)" : "transparent",
+                color: hasRange ? "#FFFFFF" : "var(--fg-3)",
+                opacity: hasRange ? 1 : 0.5,
+              }}
+            >
+              All
+            </button>
           </div>
         )}
         <span

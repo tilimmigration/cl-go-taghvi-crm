@@ -25,7 +25,11 @@ export default function App() {
   // that gated the UI without any real authentication is gone.
   const [session, setSession] = useState(undefined);
   const [view, setView] = useState("dash");
-  const [tf, setTf] = useState("month");
+  // Dashboard date filter: inclusive "YYYY-MM-DD" bounds on when a record
+  // was created on Monday. Empty string means "no bound on that side", so
+  // both empty = all time (the default).
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [aiTab, setAiTab] = useState("summary");
   const [leadKey, setLeadKey] = useState("ana");
 
@@ -77,13 +81,15 @@ export default function App() {
           overline={v.overline}
           title={v.title}
           sub={v.sub}
-          showTimeframe={view === "dash"}
-          tf={tf}
-          onTf={setTf}
+          showDateFilter={view === "dash"}
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          onDateFrom={setDateFrom}
+          onDateTo={setDateTo}
         />
 
         <div style={{ padding: "var(--space-6) var(--space-7) var(--space-9)", display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
-          {view === "dash" && <Dashboard tf={tf} showTargets={PROPS.showBenchmarkTargets} />}
+          {view === "dash" && <Dashboard dateFrom={dateFrom} dateTo={dateTo} showTargets={PROPS.showBenchmarkTargets} />}
           {view === "pipe" && <Pipeline showDedupeFlags={PROPS.showDedupeFlags} onOpenLead={openLead} />}
           {view === "post" && <PostCE />}
           {view === "record" && (
