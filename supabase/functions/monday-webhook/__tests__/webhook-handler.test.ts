@@ -339,3 +339,31 @@ test("challenge verification bypasses the shared-secret check", async () => {
   assert.equal(res.status, 200);
   assert.deepEqual(await res.json(), { challenge: "abc" });
 });
+
+// --- Multi-board routing: Deals stage move -> crm_deals ----------------------
+
+test("deals board move_item_to_group re-syncs the deal into crm_deals with its new group, leaving crm_leads untouched", async () => {
+  const DEALS_BOARD_ID = "222333444";
+  const supabase = createFakeSupabaseClient();
+  const mondayClient = createFakeMondayClient({
+    items: {
+      "900": buildMondayItem({
+        id: "900",
+        name: "Acme LLC",
+        board: { id: DEALS_BOARD_ID },
+        group: { id: "signed_up", title: "Signed up" },
+      }),
+    },
+  });
+
+  const res = await handleWebhookRequest(
+    postRequest({ event: { type: "move_item_to_group", boardId: Number(DEALS_BOARD_ID), pulseId: 900, userId: 1 } }),
+    { config: baseConfig({ dealsBoardId: DEALS_BOARD_ID }), supabaseClient: supabase, mondayClient },
+  );
+
+  assert.equal(res.status, 200);
+  assert.equal(supabase.tables.crm_deals?.length, 1);
+  assert.equal(supabase.tables.crm_deals[0].monday_item_id, 900);
+  assert.equal(supabase.tables.crm_deals[0].monday_group_title, "Signed up");
+  assert.equal(supabase.tables.crm_leads?.length ?? 0, 0);
+});

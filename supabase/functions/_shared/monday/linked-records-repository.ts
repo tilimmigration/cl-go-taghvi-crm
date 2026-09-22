@@ -179,6 +179,84 @@ export async function reconcileRemovedLinkedRecords(
   return data?.length ?? 0;
 }
 
+/** Soft-archives a call/deal by (board, item) — mirrors markLeadArchived, for the webhook's item_archived event. */
+export async function markLinkedRecordArchived(
+  supabase: SupabaseClientLike,
+  table: LinkedRecordTable,
+  boardId: string,
+  itemId: string,
+  archivedAt: string,
+) {
+  const { data: existing } = await supabase
+    .from(table)
+    .select("id")
+    .eq("monday_board_id", Number(boardId))
+    .eq("monday_item_id", Number(itemId))
+    .maybeSingle();
+
+  if (existing) {
+    const { error } = await supabase
+      .from(table)
+      .update({ is_archived: true, archived_at: archivedAt, last_synced_at: new Date().toISOString(), last_synced_event_type: "item_archived" })
+      .eq("id", existing.id);
+    if (error) throw error;
+    return;
+  }
+
+  const { error } = await supabase.from(table).upsert(
+    {
+      monday_board_id: Number(boardId),
+      monday_item_id: Number(itemId),
+      name: `(archived Monday item ${itemId})`,
+      is_archived: true,
+      archived_at: archivedAt,
+      last_synced_at: new Date().toISOString(),
+      last_synced_event_type: "item_archived",
+    },
+    { onConflict: "monday_board_id,monday_item_id" },
+  );
+  if (error) throw error;
+}
+
+/** Soft-deletes a call/deal by (board, item) — mirrors markLeadDeleted, for the webhook's item_deleted event. */
+export async function markLinkedRecordDeleted(
+  supabase: SupabaseClientLike,
+  table: LinkedRecordTable,
+  boardId: string,
+  itemId: string,
+  deletedAt: string,
+) {
+  const { data: existing } = await supabase
+    .from(table)
+    .select("id")
+    .eq("monday_board_id", Number(boardId))
+    .eq("monday_item_id", Number(itemId))
+    .maybeSingle();
+
+  if (existing) {
+    const { error } = await supabase
+      .from(table)
+      .update({ is_deleted: true, deleted_at: deletedAt, last_synced_at: new Date().toISOString(), last_synced_event_type: "item_deleted" })
+      .eq("id", existing.id);
+    if (error) throw error;
+    return;
+  }
+
+  const { error } = await supabase.from(table).upsert(
+    {
+      monday_board_id: Number(boardId),
+      monday_item_id: Number(itemId),
+      name: `(deleted Monday item ${itemId})`,
+      is_deleted: true,
+      deleted_at: deletedAt,
+      last_synced_at: new Date().toISOString(),
+      last_synced_event_type: "item_deleted",
+    },
+    { onConflict: "monday_board_id,monday_item_id" },
+  );
+  if (error) throw error;
+}
+
 /** Count of active (non-deleted) records for a board in the given table — for post-import validation. */
 export async function countActiveLinkedRecordsForBoard(
   supabase: SupabaseClientLike,

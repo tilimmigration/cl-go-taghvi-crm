@@ -89,6 +89,7 @@ export type CanonicalEventType =
   | "create_item"
   | "change_column_value"
   | "change_name"
+  | "move_item_to_group"
   | "item_archived"
   | "item_deleted";
 
