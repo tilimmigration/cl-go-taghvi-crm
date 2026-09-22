@@ -40,7 +40,7 @@ async function getSupabaseClientFactory() {
 import { type MondaySyncConfig, loadConfig } from "../_shared/monday/config.ts";
 import { createMondayClient, type MondayClient } from "../_shared/monday/client.ts";
 import { normalizeWebhookEvent } from "../_shared/monday/events.ts";
-import { archiveItem, deleteItem, syncItemFromMonday } from "../_shared/monday/pipeline.ts";
+import { archiveItem, deleteItem, syncItemFromMonday, type SyncTarget } from "../_shared/monday/pipeline.ts";
 import { logWebhookEvent } from "../_shared/monday/webhook-logger.ts";
 import type { CanonicalEventType, NormalizedWebhookEvent } from "../_shared/monday/types.ts";
 
@@ -54,18 +54,39 @@ interface HandlerDeps {
 }
 
 /**
- * Per-event handlers, keyed by canonical event type. Adding a new
- * supported event later is a one-line addition here — no other file needs
- * to change.
+ * Resolves which CRM table an event's board syncs into. Returns null for a
+ * board this deployment isn't configured to sync, so the caller can skip
+ * it. The Leads board is always configured; Calls and Deals are optional.
  */
-const HANDLERS: Record<CanonicalEventType, (deps: HandlerDeps, event: NormalizedWebhookEvent) => Promise<unknown>> = {
-  create_item: (deps, event) => syncItemFromMonday(deps, event.boardId!, event.itemId!, "create_item"),
-  change_column_value: (deps, event) => syncItemFromMonday(deps, event.boardId!, event.itemId!, "change_column_value"),
-  change_name: (deps, event) => syncItemFromMonday(deps, event.boardId!, event.itemId!, "change_name"),
-  item_archived: (deps, event) =>
-    archiveItem(deps.supabase, event.boardId!, event.itemId!, event.triggerTime ?? new Date().toISOString()),
-  item_deleted: (deps, event) =>
-    deleteItem(deps.supabase, event.boardId!, event.itemId!, event.triggerTime ?? new Date().toISOString()),
+function resolveTarget(config: MondaySyncConfig, boardId: string): SyncTarget | null {
+  if (boardId === config.leadsBoardId) return { kind: "lead" };
+  if (config.callsBoardId && boardId === config.callsBoardId) {
+    return { kind: "linked", table: "crm_calls", leadsBoardId: config.leadsBoardId };
+  }
+  if (config.dealsBoardId && boardId === config.dealsBoardId) {
+    return { kind: "linked", table: "crm_deals", leadsBoardId: config.leadsBoardId };
+  }
+  return null;
+}
+
+/**
+ * Per-event handlers, keyed by canonical event type. A create/change/name/
+ * group-move all re-fetch and upsert the item; archive/delete soft-mark
+ * it. move_item_to_group is what carries a deal between funnel stages, so
+ * re-syncing on it is what keeps the Dashboard's stage counts live.
+ */
+const HANDLERS: Record<
+  CanonicalEventType,
+  (deps: HandlerDeps, event: NormalizedWebhookEvent, target: SyncTarget) => Promise<unknown>
+> = {
+  create_item: (deps, event, target) => syncItemFromMonday(deps, event.boardId!, event.itemId!, "create_item", target),
+  change_column_value: (deps, event, target) => syncItemFromMonday(deps, event.boardId!, event.itemId!, "change_column_value", target),
+  change_name: (deps, event, target) => syncItemFromMonday(deps, event.boardId!, event.itemId!, "change_name", target),
+  move_item_to_group: (deps, event, target) => syncItemFromMonday(deps, event.boardId!, event.itemId!, "move_item_to_group", target),
+  item_archived: (deps, event, target) =>
+    archiveItem(deps.supabase, event.boardId!, event.itemId!, event.triggerTime ?? new Date().toISOString(), target),
+  item_deleted: (deps, event, target) =>
+    deleteItem(deps.supabase, event.boardId!, event.itemId!, event.triggerTime ?? new Date().toISOString(), target),
 };
 
 function json(body: unknown, status = 200): Response {
@@ -135,9 +156,12 @@ export async function handleWebhookRequest(req: Request, overrides: HandleWebhoo
   }
   const event = normalizeWebhookEvent(rawBody);
 
-  // --- Board scope ---------------------------------------------------
-  if (!event.boardId || event.boardId !== config.leadsBoardId) {
-    console.log(`monday-webhook: ignoring event for board ${event.boardId ?? "unknown"} (configured board: ${config.leadsBoardId})`);
+  // --- Board scope: resolve which CRM table this board syncs into -----
+  // Accepts the Leads board plus the optional Calls and Deals boards;
+  // anything else is ignored so an unrelated board's events never write.
+  const target = event.boardId ? resolveTarget(config, event.boardId) : null;
+  if (!target) {
+    console.log(`monday-webhook: ignoring event for unconfigured board ${event.boardId ?? "unknown"}`);
     await logWebhookEvent(supabase, {
       eventId: event.eventId,
       eventType: event.rawType || "unknown",
@@ -185,7 +209,7 @@ export async function handleWebhookRequest(req: Request, overrides: HandleWebhoo
   try {
     const mondayClient =
       overrides.mondayClient ?? createMondayClient({ apiToken: config.mondayApiToken, apiUrl: config.mondayApiUrl });
-    await HANDLERS[event.type]({ mondayClient, supabase, columnIdMapJson: config.columnIdMapJson }, event);
+    await HANDLERS[event.type]({ mondayClient, supabase, columnIdMapJson: config.columnIdMapJson }, event, target);
 
     await logWebhookEvent(supabase, {
       eventId: event.eventId,

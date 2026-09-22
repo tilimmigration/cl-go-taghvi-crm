@@ -21,6 +21,17 @@ const EVENT_TYPE_ALIASES: Record<string, CanonicalEventType> = {
   change_name: "change_name",
   update_name: "change_name",
 
+  // Moving an item between groups is how a deal changes funnel stage
+  // (e.g. "Case Evaluation Booked" -> "Signed up"), which is exactly what
+  // the Dashboard's stage counts track. Monday has spelled this event
+  // several ways across versions — alias every known variant.
+  move_item_to_group: "move_item_to_group",
+  move_pulse_into_group: "move_item_to_group",
+  move_pulse_to_group: "move_item_to_group",
+  move_item_to_board_group: "move_item_to_group",
+  item_moved_to_any_group: "move_item_to_group",
+  item_moved_to_specific_group: "move_item_to_group",
+
   item_archived: "item_archived",
   archive_item: "item_archived",
   archive_pulse: "item_archived",

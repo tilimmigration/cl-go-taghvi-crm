@@ -33,6 +33,7 @@ const LEAD_COLUMNS = [
   "industry",
   "notes",
   "custom_fields",
+  "monday_created_at",
   "created_at",
   "updated_at",
 ].join(", ");
@@ -52,6 +53,7 @@ const LINKED_RECORD_COLUMNS = [
   "related_lead_id",
   "related_lead_monday_item_id",
   "custom_fields",
+  "monday_created_at",
   "created_at",
   "updated_at",
 ].join(", ");
