@@ -3,11 +3,17 @@
 // a deal currently sits in, already synced as monday_group_title (see
 // supabase/migrations/20260903000000_calls_and_deals.sql). These four
 // stages are NOT separate Monday columns on the Deals board, they are
-// literal group names. Revenue, by contrast, IS a column, so it's still
-// read from custom_fields (columns not covered by the shared mapper's
-// DEFAULT_TITLE_MAP land there keyed by column id, as
-// { title, type, text, value } — see
-// supabase/functions/_shared/monday/mapper.ts).
+// literal group names.
+//
+// Revenue is the summed "Contract Value" of the Signed-up deals only.
+// Contract Value is a Monday FORMULA column — SUM({Monthly fee} × {Term},
+// {Upfront Fee}) — and Monday's API returns formula columns empty, so we
+// recompute it from the three numeric columns it references (Monthly fee,
+// Term, Upfront Fee), each present in custom_fields as
+// { title, type, text, value } (columns not covered by the shared mapper's
+// DEFAULT_TITLE_MAP land there — see
+// supabase/functions/_shared/monday/mapper.ts). Formula confirmed against
+// the Deals board's column settings on 2026-09-22.
 //
 // CE booked on the Dashboard is the SUM of two sources, not this file's
 // ceBooked alone: crm_leads whose Status is "Case evaluation scheduled"
@@ -55,7 +61,13 @@ const STAGE_GROUPS = {
   contractSigned: "signed up",
 };
 
-const REVENUE_KEYWORDS = ["revenue"];
+// "Contract Value" is a Monday FORMULA column that computes
+//   SUM({Monthly fee} × {Term}, {Upfront Fee})
+// (confirmed against the Deals board's column settings 2026-09-22:
+// SUM({numbers_1}*{numbers_2},{numbers1})). Monday's API returns formula
+// columns empty, so Revenue is recomputed from the three numeric columns
+// it references, matched by their (case-insensitive, trimmed) titles.
+const CONTRACT_VALUE_TITLES = { monthlyFee: "monthly fee", term: "term", upfrontFee: "upfront fee" };
 
 export const FIELD_LABELS = {
   ceBooked: "CE booked",
@@ -65,40 +77,48 @@ export const FIELD_LABELS = {
   revenue: "Revenue",
 };
 
-function findField(customFields, keywords) {
-  const entries = Object.values(customFields || {}).filter((f) => f?.title);
-  for (const kw of keywords) {
-    const exact = entries.find((f) => f.title.trim().toLowerCase() === kw);
-    if (exact) return exact;
-  }
-  for (const kw of keywords) {
-    const partial = entries.find((f) => f.title.trim().toLowerCase().includes(kw));
-    if (partial) return partial;
-  }
-  return null;
+/** Find a custom field by its exact (case-insensitive, trimmed) title. */
+function fieldByTitle(customFields, title) {
+  return Object.values(customFields || {}).find((f) => f?.title && f.title.trim().toLowerCase() === title) ?? null;
 }
 
-function parseCurrency(field) {
-  if (!field?.text) return 0;
+/** Numeric value of a custom field's text, tolerating "$1,234.50" / "" / null. */
+function numberFromField(field) {
+  if (!field || field.text === null || field.text === undefined || field.text === "") return 0;
   const n = Number(String(field.text).replace(/[^0-9.-]/g, ""));
   return Number.isFinite(n) ? n : 0;
+}
+
+/** Contract Value = Monthly fee × Term + Upfront Fee (see CONTRACT_VALUE_TITLES). */
+function contractValueOf(deal) {
+  const cf = deal.custom_fields;
+  const monthlyFee = numberFromField(fieldByTitle(cf, CONTRACT_VALUE_TITLES.monthlyFee));
+  const term = numberFromField(fieldByTitle(cf, CONTRACT_VALUE_TITLES.term));
+  const upfrontFee = numberFromField(fieldByTitle(cf, CONTRACT_VALUE_TITLES.upfrontFee));
+  return monthlyFee * term + upfrontFee;
+}
+
+/** Whether ANY of the Contract Value component columns is present on a deal. */
+function hasContractValueFields(deal) {
+  return Object.values(CONTRACT_VALUE_TITLES).some((title) => fieldByTitle(deal.custom_fields, title) !== null);
 }
 
 function groupOf(deal) {
   return (deal.monday_group_title || "").trim().toLowerCase();
 }
 
-/** Per-deal extraction. */
+/** Per-deal extraction. Revenue is a deal's Contract Value, but only counts
+ * toward the total once the deal is in the "Signed up" group. */
 export function extractDealMetrics(deal) {
   const group = groupOf(deal);
-  const revenueField = findField(deal.custom_fields, REVENUE_KEYWORDS);
+  const contractSigned = group === STAGE_GROUPS.contractSigned;
   return {
     ceBooked: group === STAGE_GROUPS.ceBooked,
     ceCompleted: group === STAGE_GROUPS.ceCompleted,
     proposalSent: group === STAGE_GROUPS.proposalSent,
-    contractSigned: group === STAGE_GROUPS.contractSigned,
-    revenue: parseCurrency(revenueField),
-    revenueFound: revenueField !== null,
+    contractSigned,
+    revenue: contractSigned ? contractValueOf(deal) : 0,
+    revenueFound: hasContractValueFields(deal),
   };
 }
 
@@ -108,7 +128,8 @@ export function extractDealMetrics(deal) {
  * rather than a legitimately empty stage: for the four group-based
  * stages, the target group name never appeared on ANY synced deal at
  * all (vs. simply having 0 deals in it right now); for revenue, no deal
- * had a column recognizable as "Revenue".
+ * carried any of the Contract Value component columns (Monthly fee /
+ * Term / Upfront Fee), so the column titles likely changed.
  */
 export function aggregateDealStats(deals) {
   const totals = { ceBooked: 0, ceCompleted: 0, proposalSent: 0, contractSigned: 0, revenue: 0 };
