@@ -24,11 +24,16 @@ import { type MondaySyncConfig, loadConfig } from "../_shared/monday/config.ts";
 // The events monday-webhook knows how to handle. move_item_to_group is the
 // one that carries a deal between funnel stages, so the Dashboard's stage
 // counts stay live.
+// These are Monday's WebhookEventType enum values used when CREATING a
+// subscription. Note the group-move enum is "item_moved_to_any_group" —
+// the delivered payload's event.type is the different string
+// "move_item_to_group" (aliased in events.ts). move is what carries a deal
+// between funnel stages, so the Dashboard's stage counts stay live.
 const WEBHOOK_EVENTS = [
   "create_item",
   "change_column_value",
   "change_name",
-  "move_item_to_group",
+  "item_moved_to_any_group",
   "item_deleted",
   "item_archived",
 ] as const;
