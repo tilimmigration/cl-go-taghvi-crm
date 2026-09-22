@@ -10,8 +10,64 @@ const DATE_INPUT_STYLE = {
   colorScheme: "light dark",
 };
 
+const PRESETS = [
+  { key: "thisWeek", label: "This week" },
+  { key: "lastWeek", label: "Last week" },
+  { key: "thisMonth", label: "This month" },
+  { key: "lastMonth", label: "Last month" },
+  { key: "thisQuarter", label: "This quarter" },
+  { key: "thisYear", label: "This year" },
+];
+
+/** Local-time YYYY-MM-DD, matching what <input type="date"> produces. */
+function toYMD(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/** Inclusive {from, to} range for a named preset, as YYYY-MM-DD strings. Weeks start Monday. */
+function presetRange(key) {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const mondayOffset = (today.getDay() + 6) % 7; // days since this week's Monday
+  switch (key) {
+    case "thisWeek": {
+      const start = new Date(today);
+      start.setDate(today.getDate() - mondayOffset);
+      return { from: toYMD(start), to: toYMD(today) };
+    }
+    case "lastWeek": {
+      const start = new Date(today);
+      start.setDate(today.getDate() - mondayOffset - 7);
+      const end = new Date(today);
+      end.setDate(today.getDate() - mondayOffset - 1);
+      return { from: toYMD(start), to: toYMD(end) };
+    }
+    case "thisMonth":
+      return { from: toYMD(new Date(today.getFullYear(), today.getMonth(), 1)), to: toYMD(today) };
+    case "lastMonth":
+      return {
+        from: toYMD(new Date(today.getFullYear(), today.getMonth() - 1, 1)),
+        to: toYMD(new Date(today.getFullYear(), today.getMonth(), 0)),
+      };
+    case "thisQuarter":
+      return { from: toYMD(new Date(today.getFullYear(), Math.floor(today.getMonth() / 3) * 3, 1)), to: toYMD(today) };
+    case "thisYear":
+      return { from: toYMD(new Date(today.getFullYear(), 0, 1)), to: toYMD(today) };
+    default:
+      return { from: "", to: "" };
+  }
+}
+
 export default function Header({ overline, title, sub, showDateFilter, dateFrom, dateTo, onDateFrom, onDateTo }) {
   const hasRange = Boolean(dateFrom || dateTo);
+  function applyPreset(key) {
+    const { from, to } = presetRange(key);
+    onDateFrom(from);
+    onDateTo(to);
+  }
   return (
     <header
       style={{
@@ -31,8 +87,37 @@ export default function Header({ overline, title, sub, showDateFilter, dateFrom,
         <h1 style={{ margin: 0, fontSize: 32, fontWeight: 700, letterSpacing: "-0.01em", lineHeight: 1.25 }}>{title}</h1>
         <p style={{ margin: 0, fontSize: 15, color: "var(--fg-3)", maxWidth: "70ch" }}>{sub}</p>
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
-        {showDateFilter && (
+
+      {showDateFilter && (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "var(--space-2)" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: 4 }}>
+            {PRESETS.map((p) => {
+              const r = presetRange(p.key);
+              const active = hasRange && dateFrom === r.from && dateTo === r.to;
+              return (
+                <button
+                  key={p.key}
+                  type="button"
+                  onClick={() => applyPreset(p.key)}
+                  style={{
+                    fontFamily: "inherit",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    padding: "6px 11px",
+                    border: "1px solid var(--border-subtle)",
+                    borderRadius: "var(--radius-pill)",
+                    cursor: "pointer",
+                    background: active ? "var(--brill-navy)" : "var(--surface-raised)",
+                    color: active ? "#FFFFFF" : "var(--fg-2)",
+                    borderColor: active ? "var(--brill-navy)" : "var(--border-subtle)",
+                  }}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
+
           <div
             style={{
               display: "flex",
@@ -86,20 +171,8 @@ export default function Header({ overline, title, sub, showDateFilter, dateFrom,
               All
             </button>
           </div>
-        )}
-        <span
-          style={{
-            fontSize: 12,
-            fontWeight: 600,
-            padding: "7px 12px",
-            borderRadius: "var(--radius-pill)",
-            background: "var(--brill-navy)",
-            color: "var(--brill-white)",
-          }}
-        >
-          Concept · not live data
-        </span>
-      </div>
+        </div>
+      )}
     </header>
   );
 }
