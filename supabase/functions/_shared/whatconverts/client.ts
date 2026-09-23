@@ -70,6 +70,10 @@ export interface WhatConvertsLeadsQuery {
   leadsPerPage?: number;
   /** WhatConverts `page_number` (1-based). */
   pageNumber?: number;
+  /** WhatConverts `start_date` (yyyy-mm-dd), inclusive. Omit for the API default window. */
+  startDate?: string;
+  /** WhatConverts `end_date` (yyyy-mm-dd), inclusive. */
+  endDate?: string;
 }
 
 export interface WhatConvertsLeadsPage {
@@ -164,6 +168,8 @@ export function createWhatConvertsClient(opts: {
       const { status, bodyText, retryAfter } = await getRaw("/leads", {
         leads_per_page: query.leadsPerPage,
         page_number: query.pageNumber,
+        start_date: query.startDate,
+        end_date: query.endDate,
       });
 
       if (status === 401 || status === 403) {

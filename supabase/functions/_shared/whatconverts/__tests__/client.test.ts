@@ -54,6 +54,20 @@ test("sends HTTP Basic auth + pagination params and returns normalized leads", a
   );
 });
 
+test("sends start_date / end_date query params when provided", async () => {
+  await withMockedFetch(
+    (url) => {
+      const u = new URL(url);
+      assert.equal(u.searchParams.get("start_date"), "2005-01-01");
+      assert.equal(u.searchParams.get("end_date"), "2030-12-31");
+      return response(200, { leads_per_page: 250, page_number: 1, total_pages: 1, total_leads: 0, leads: [] });
+    },
+    async () => {
+      await client().fetchLeads({ leadsPerPage: 250, pageNumber: 1, startDate: "2005-01-01", endDate: "2030-12-31" });
+    },
+  );
+});
+
 test("401 -> WhatConvertsAuthError, and the secret is not leaked in the message", async () => {
   await withMockedFetch(
     () => response(401, { message: "Unauthorized" }),
