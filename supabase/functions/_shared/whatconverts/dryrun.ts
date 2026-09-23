@@ -6,7 +6,7 @@
 // redacted here so the report is safe to share.
 
 import { buildLeadIndex, matchAll, type CrmLeadLike, type MatchMethod, type MatchResult, type MatchOptions, type WhatConvertsLeadLike } from "./matching.ts";
-import { computeFirstTouch, type Channel, CHANNELS, type MatchedTouch } from "./attribution.ts";
+import { computeFirstTouch, type Channel, type MatchedTouch } from "./attribution.ts";
 import { aggregateFirstTouchChannels, reconcile, type Reconciliation } from "./reconcile.ts";
 
 export interface DryRunInput {
@@ -15,29 +15,6 @@ export interface DryRunInput {
   /** Existing dashboard channel counts by display label (+ "__total__"); from src/data.js, never hardcoded here. */
   existingChannels?: Record<string, number | null>;
   options?: MatchOptions;
-}
-
-export interface DryRunReport {
-  matching: {
-    totalWhatConvertsLeads: number;
-    matched: number;
-    unmatched: number;
-    ambiguous: number;
-    byMethod: Record<MatchMethod, number>;
-    byConfidence: Record<string, number>;
-  };
-  firstTouch: {
-    byChannel: Record<Channel, number>;
-    totalAttributed: number;
-  };
-  reconciliation: Reconciliation;
-  examples: {
-    emailMatch: RedactedExample | null;
-    phoneMatch: RedactedExample | null;
-    unmatched: RedactedExample | null;
-    ambiguous: RedactedExample | null;
-    multiTouchFirstTouch: MultiTouchExample | null;
-  };
 }
 
 export interface RedactedExample {
@@ -59,6 +36,35 @@ export interface MultiTouchExample {
   touches_in_order: Channel[];
   first_touch_channel: Channel;
   first_touch_display: string;
+}
+
+export interface DryRunReport {
+  matching: {
+    totalWhatConvertsLeads: number;
+    matched: number;
+    unmatched: number;
+    ambiguous: number;
+    byMethod: Record<MatchMethod, number>;
+    byConfidence: Record<string, number>;
+  };
+  firstTouch: {
+    byChannel: Record<Channel, number>;
+    totalAttributed: number;
+  };
+  reconciliation: Reconciliation;
+  /** CRM leads that got no first-touch attribution (no matched WhatConverts touch). */
+  crmLeadsWithNoAttribution: number;
+  /** WhatConverts leads that matched no CRM lead. */
+  whatConvertsWithNoMatch: number;
+  /** CRM leads with more than one matched WhatConverts touch. */
+  crmLeadsWithMultipleTouchpoints: number;
+  examples: {
+    emailMatch: RedactedExample | null;
+    phoneMatch: RedactedExample | null;
+    unmatched: RedactedExample | null;
+    ambiguous: RedactedExample | null;
+    multiTouchFirstTouch: MultiTouchExample | null;
+  };
 }
 
 // --- PII redaction ----------------------------------------------------------
@@ -124,6 +130,10 @@ export function runDryRun(input: DryRunInput): DryRunReport {
   const reconciliation = reconcile(agg, existingChannels);
 
   const multi = firstTouch.find((ft) => ft.touchCount > 1) ?? null;
+  const attributedLeadIds = new Set(firstTouch.map((ft) => ft.crmLeadId));
+
+  const emailMatchR = matched.find((r) => r.match_method === "email" || r.match_method === "email_phone");
+  const phoneMatchR = matched.find((r) => r.match_method === "phone" || r.match_method === "name_phone");
 
   return {
     matching: {
@@ -136,9 +146,12 @@ export function runDryRun(input: DryRunInput): DryRunReport {
     },
     firstTouch: { byChannel: agg.byChannel, totalAttributed: agg.totalAttributed },
     reconciliation,
+    crmLeadsWithNoAttribution: crmLeads.length - attributedLeadIds.size,
+    whatConvertsWithNoMatch: unmatched.length,
+    crmLeadsWithMultipleTouchpoints: firstTouch.filter((ft) => ft.touchCount > 1).length,
     examples: {
-      emailMatch: (matched.find((r) => r.match_method === "email" || r.match_method === "email_phone") ?? null) && redactResult(matched.find((r) => r.match_method === "email" || r.match_method === "email_phone")!),
-      phoneMatch: (matched.find((r) => r.match_method === "phone" || r.match_method === "name_phone") ?? null) && redactResult(matched.find((r) => r.match_method === "phone" || r.match_method === "name_phone")!),
+      emailMatch: emailMatchR ? redactResult(emailMatchR) : null,
+      phoneMatch: phoneMatchR ? redactResult(phoneMatchR) : null,
       unmatched: unmatched.length ? redactResult(unmatched[0]) : null,
       ambiguous: ambiguous.length ? redactResult(ambiguous[0]) : null,
       multiTouchFirstTouch: multi
@@ -154,5 +167,3 @@ export function runDryRun(input: DryRunInput): DryRunReport {
     },
   };
 }
-
-export { CHANNELS };

@@ -75,6 +75,16 @@ test("dry run: examples exist and PII is redacted", () => {
   assert.equal(r.examples.ambiguous!.candidate_count, 2);
 });
 
+test("dry run: coverage counts (no-attribution, no-match, multi-touch)", () => {
+  const r = runDryRun({ crmLeads: CRM, whatConvertsLeads: WC });
+  // 5 CRM leads, 3 attributed (L1/L2/L3) => 2 with no WhatConverts attribution (L4/L5).
+  assert.equal(r.crmLeadsWithNoAttribution, 2);
+  // one WhatConverts lead matched nothing.
+  assert.equal(r.whatConvertsWithNoMatch, 1);
+  // L1 (3 touches) and L2 (2 touches) both have multiple touchpoints.
+  assert.equal(r.crmLeadsWithMultipleTouchpoints, 2);
+});
+
 test("dry run: writes nothing (pure function over inputs) — inputs are not mutated", () => {
   const before = JSON.stringify(CRM);
   runDryRun({ crmLeads: CRM, whatConvertsLeads: WC });
