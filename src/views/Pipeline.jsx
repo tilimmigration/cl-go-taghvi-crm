@@ -219,11 +219,29 @@ export default function Pipeline({ showDedupeFlags, onOpenLead }) {
               const expanded = expandedLeadId === lead.id;
               const customFieldEntries = Object.entries(lead.custom_fields || {});
               const relatedLead = lead.related_lead_id ? liveLeads.leads.find((l) => l.id === lead.related_lead_id) : null;
-              // First-touch attribution source for this lead. Attribution is
-              // keyed by the Leads-board monday_item_id, so only lead rows can
-              // match; calls/deals carry a different board's item id.
-              const attrChannel = lead._sourceType === "lead" && lead.monday_item_id != null ? firstTouchByMonday.get(String(lead.monday_item_id))?.channel ?? null : null;
-              const attrSourceLabel = attrChannel ? CHANNEL_DISPLAY_LABEL[attrChannel] || attrChannel : null;
+              // First-touch attribution for this lead. Attribution is keyed by
+              // the Leads-board monday_item_id, so only lead rows can match;
+              // calls/deals carry a different board's item id.
+              const attrMatch = lead._sourceType === "lead" && lead.monday_item_id != null ? firstTouchByMonday.get(String(lead.monday_item_id)) ?? null : null;
+              const attrChannel = attrMatch?.channel ?? null;
+              const attrChannelLabel = attrChannel ? CHANNEL_DISPLAY_LABEL[attrChannel] || attrChannel : null;
+              // The literal WhatConverts "Lead source" for the pill and detail —
+              // falls back to the channel bucket only if the raw source is blank.
+              const attrSourceLabel = attrMatch ? attrMatch.source || attrChannelLabel : null;
+              // Detail cells for the expanded row's WhatConverts block.
+              const wcCells =
+                lead._sourceType !== "lead"
+                  ? []
+                  : !attrReady
+                    ? [{ label: "First-touch source (WhatConverts)", value: "Loading…", muted: true }]
+                    : attrMatch
+                      ? [
+                          { label: "Lead source (WhatConverts)", value: attrMatch.source || "—", muted: false },
+                          ...(attrMatch.medium ? [{ label: "Medium", value: attrMatch.medium, muted: false }] : []),
+                          ...(attrMatch.campaign ? [{ label: "Campaign", value: attrMatch.campaign, muted: false }] : []),
+                          { label: "First-touch channel", value: attrChannelLabel || "—", muted: false },
+                        ]
+                      : [{ label: "First-touch source (WhatConverts)", value: "No WhatConverts match", muted: true }];
 
               return (
                 <div key={lead.id} style={{ display: "flex", flexDirection: "column" }}>
@@ -275,7 +293,7 @@ export default function Pipeline({ showDedupeFlags, onOpenLead }) {
                               border: "1px solid var(--border-default)",
                               color: "var(--fg-2)",
                             }}
-                            title="First-touch source (WhatConverts)"
+                            title="Lead source (WhatConverts first touch)"
                           >
                             {attrSourceLabel}
                           </span>
@@ -304,16 +322,14 @@ export default function Pipeline({ showDedupeFlags, onOpenLead }) {
                       }}
                     >
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: "var(--space-3) var(--space-4)" }}>
-                        {lead._sourceType === "lead" && (
-                          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                        {wcCells.map((c) => (
+                          <div key={c.label} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                             <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--fg-3)" }}>
-                              First-touch source (WhatConverts)
+                              {c.label}
                             </span>
-                            <span style={{ fontSize: 13, color: attrSourceLabel ? "var(--fg-2)" : "var(--fg-3)" }}>
-                              {!attrReady ? "Loading…" : attrSourceLabel || "No WhatConverts match"}
-                            </span>
+                            <span style={{ fontSize: 13, color: c.muted ? "var(--fg-3)" : "var(--fg-2)" }}>{c.value}</span>
                           </div>
-                        )}
+                        ))}
                         {LIVE_LEAD_DETAIL_FIELDS.map(([label, key]) =>
                           lead[key] ? (
                             <div key={key} style={{ display: "flex", flexDirection: "column", gap: 2 }}>

@@ -117,6 +117,18 @@ test("lifecycle availability: unavailable when no lead link/status, available wh
   assert.equal(t.signedAvailable, false);
 });
 
+test("first touch carries the raw WhatConverts lead source / medium / campaign", () => {
+  const ft = firstTouchByLead([
+    { whatconverts_lead_id: 1, monday_item_id: 100, channel: "Meta Ads", raw_source: "facebook", raw_medium: "cpc", raw_campaign: "Spring-2026", attribution_created_at: "2026-05-01T00:00:00Z", match_status: "matched" },
+    { whatconverts_lead_id: 2, monday_item_id: 100, channel: "Google Ads", raw_source: "google", raw_medium: "cpc", attribution_created_at: "2026-06-01T00:00:00Z", match_status: "matched" }, // later touch, must not win
+  ]);
+  const m = ft.get("100");
+  assert.equal(m.channel, "Meta Ads");
+  assert.equal(m.source, "facebook", "earliest touch's lead source wins");
+  assert.equal(m.medium, "cpc");
+  assert.equal(m.campaign, "Spring-2026");
+});
+
 test("full-coverage accounting: channels (attributed) + unattributed = total leads", () => {
   const attrRows = [
     { whatconverts_lead_id: 1, monday_item_id: 100, channel: "Meta Ads", attribution_created_at: "2026-05-01T00:00:00Z", match_status: "matched" },

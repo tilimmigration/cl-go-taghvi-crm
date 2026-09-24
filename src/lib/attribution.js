@@ -56,7 +56,18 @@ export function firstTouchByLead(rows) {
     const wcId = String(r.whatconverts_lead_id ?? "");
     const cur = byLead.get(key);
     if (!cur || ts < cur.ts || (ts === cur.ts && wcId < cur.wcId)) {
-      byLead.set(key, { channel: canonicalChannel(r.channel), ts, wcId, mondayItemId: key });
+      byLead.set(key, {
+        channel: canonicalChannel(r.channel),
+        // Raw WhatConverts attribution of the first touch, for the per-lead
+        // "Lead source" display (channel is the coarse bucket; these are the
+        // literal source/medium/campaign values WhatConverts recorded).
+        source: r.raw_source ?? r.source ?? null,
+        medium: r.raw_medium ?? r.medium ?? null,
+        campaign: r.raw_campaign ?? r.campaign ?? null,
+        ts,
+        wcId,
+        mondayItemId: key,
+      });
     }
   }
   return byLead;

@@ -7,7 +7,7 @@ import { supabase, isSupabaseConfigured } from "../lib/supabaseClient.js";
 // attributed. RLS restricts this to allowlisted signed-in users, same as the
 // leads read. Read-only.
 
-const ATTR_COLUMNS = "whatconverts_lead_id, monday_item_id, channel, attribution_created_at, match_status";
+const ATTR_COLUMNS = "whatconverts_lead_id, monday_item_id, channel, raw_source, raw_medium, raw_campaign, attribution_created_at, match_status";
 const PAGE_SIZE = 1000;
 
 async function fetchAttribution() {
