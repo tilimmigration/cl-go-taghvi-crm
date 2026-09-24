@@ -146,5 +146,10 @@ export function buildChannelTable(attrRows, crmLeads, crmDeals) {
     { leads: 0, ces: 0, signed: 0 },
   );
   const { ceAvailable, signedAvailable } = lifecycleAvailability(crmLeads, crmDeals);
-  return { rows, total, uniqueAttributed: firstTouch.size, ceAvailable, signedAvailable };
+  // Full-coverage accounting so the table reconciles to every CRM lead:
+  // attributed (sum of channels) + unattributed = totalLeads.
+  const uniqueAttributed = firstTouch.size;
+  const totalLeads = (crmLeads || []).length;
+  const unattributed = Math.max(0, totalLeads - uniqueAttributed);
+  return { rows, total, uniqueAttributed, unattributed, totalLeads, ceAvailable, signedAvailable };
 }

@@ -117,6 +117,23 @@ test("lifecycle availability: unavailable when no lead link/status, available wh
   assert.equal(t.signedAvailable, false);
 });
 
+test("full-coverage accounting: channels (attributed) + unattributed = total leads", () => {
+  const attrRows = [
+    { whatconverts_lead_id: 1, monday_item_id: 100, channel: "Meta Ads", attribution_created_at: "2026-05-01T00:00:00Z", match_status: "matched" },
+    { whatconverts_lead_id: 2, monday_item_id: 100, channel: "Google Ads", attribution_created_at: "2026-06-01T00:00:00Z", match_status: "matched" }, // 2nd touch, same lead
+    { whatconverts_lead_id: 3, monday_item_id: 101, channel: "Referral", attribution_created_at: "2026-05-01T00:00:00Z", match_status: "matched" },
+    { whatconverts_lead_id: 4, monday_item_id: null, channel: "Meta Ads", attribution_created_at: "2026-05-01T00:00:00Z", match_status: "unmatched" }, // excluded
+  ];
+  const crmLeads = [100, 101, 102, 103, 104].map((m) => ({ id: `L${m}`, monday_item_id: m, status: "New" }));
+  const t = buildChannelTable(attrRows, crmLeads, []);
+  assert.equal(t.uniqueAttributed, 2, "two unique attributed CRM leads");
+  assert.equal(t.totalLeads, 5);
+  assert.equal(t.unattributed, 3);
+  const channelSum = t.rows.reduce((a, r) => a + r.leads, 0);
+  assert.equal(channelSum, t.uniqueAttributed);
+  assert.equal(channelSum + t.unattributed, t.totalLeads, "everything reconciles to the total lead count");
+});
+
 test("10. no mock CHANNELS values leak — an empty attribution set yields all zeros", () => {
   const table = buildChannelTable([], [], []);
   assert.equal(table.total.leads, 0);

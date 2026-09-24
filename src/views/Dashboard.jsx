@@ -116,8 +116,11 @@ export default function Dashboard({ dateFrom, dateTo, showTargets }) {
   const channelTable = attrReady && ready ? buildChannelTable(attribution.rows, allLeadRecords, allDeals) : null;
   const channelRows = channelTable
     ? [
-        ...channelTable.rows.map((r) => ({ name: r.label, leads: r.leads, ces: r.ces, signed: r.signed, weight: 500, isTotal: false })),
-        { name: "Total", leads: channelTable.total.leads, ces: channelTable.total.ces, signed: channelTable.total.signed, weight: 700, isTotal: true },
+        ...channelTable.rows.map((r) => ({ name: r.label, leads: r.leads, ces: r.ces, signed: r.signed, weight: 500, isTotal: false, muted: false })),
+        // Full accounting: leads with no matched WhatConverts touch, so the
+        // channels (attributed) + this row reconcile to every CRM lead.
+        { name: "No WhatConverts match", leads: channelTable.unattributed, ces: null, signed: null, weight: 500, isTotal: false, muted: true },
+        { name: "Total leads", leads: channelTable.totalLeads, ces: channelTable.total.ces, signed: channelTable.total.signed, weight: 700, isTotal: true, muted: false },
       ]
     : [];
 
@@ -226,6 +229,10 @@ export default function Dashboard({ dateFrom, dateTo, showTargets }) {
           Leads are unique CRM leads by their earliest WhatConverts touch (each counted once). CE and Signed come from the CRM/Monday lifecycle where the deal-to-lead link is available; cost metrics (CPL, CPCE, CAC) have no ad-spend source. Unavailable values show “—”.
         </span>
         {channelTable ? (
+          <>
+          <span style={{ fontSize: 12, color: "var(--fg-3)" }}>
+            {`${channelTable.uniqueAttributed} of ${channelTable.totalLeads} leads have a WhatConverts first touch · ${channelTable.unattributed} with no matched WhatConverts touch`}
+          </span>
           <div style={{ display: "grid", gridTemplateColumns: "1.6fr repeat(6, minmax(0,1fr))", gap: 0, fontSize: 14 }}>
             <div
               style={{
@@ -255,16 +262,17 @@ export default function Dashboard({ dateFrom, dateTo, showTargets }) {
                   alignItems: "center",
                 }}
               >
-                <span style={{ fontWeight: ch.weight }}>{ch.name}</span>
+                <span style={{ fontWeight: ch.weight, color: ch.muted ? "var(--fg-3)" : undefined }}>{ch.name}</span>
                 <span style={{ fontWeight: ch.isTotal ? 700 : 400 }}>{ch.leads}</span>
                 <span style={{ color: "var(--fg-3)" }}>—</span>
-                <span style={channelTable.ceAvailable ? undefined : { color: "var(--fg-3)" }}>{channelTable.ceAvailable ? ch.ces : "—"}</span>
+                <span style={channelTable.ceAvailable && !ch.muted ? undefined : { color: "var(--fg-3)" }}>{channelTable.ceAvailable && !ch.muted && ch.ces != null ? ch.ces : "—"}</span>
                 <span style={{ color: "var(--fg-3)" }}>—</span>
-                <span style={channelTable.signedAvailable ? undefined : { color: "var(--fg-3)" }}>{channelTable.signedAvailable ? ch.signed : "—"}</span>
+                <span style={channelTable.signedAvailable && !ch.muted ? undefined : { color: "var(--fg-3)" }}>{channelTable.signedAvailable && !ch.muted && ch.signed != null ? ch.signed : "—"}</span>
                 <span style={{ color: "var(--fg-3)" }}>—</span>
               </div>
             ))}
           </div>
+          </>
         ) : (
           <p style={{ margin: 0, fontSize: 13, color: "var(--fg-3)" }}>
             {attribution.status === "error" ? "Channel attribution is temporarily unavailable." : "Loading channel attribution…"}
