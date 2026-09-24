@@ -158,6 +158,7 @@ function buildCandidate(survivor, dup, reEngageGapDays) {
     action,
     defaultDecision,
     contact: contactLine(dup),
+    survivorContact: contactLine(survivor),
     matchLabel: `Matches existing record #${survivor.monday_item_id}`,
     detail: `${basisText}.${dateNote}${nameNote}`.trim(),
   };
