@@ -189,11 +189,9 @@ export function boardFor(showDedupeFlags = true) {
   ];
 }
 
-export const DEDUPE = [
-  { name: "Ana Beltrán", contact: "ana.beltran@gmail.com · (818) 442-0197", matched: "Matches existing record LD-1042", detail: "Quiz submission 8 Aug · inbound call 9 Aug · same phone, name spelled \"Ana Beltran\"", verdict: "Name differs — confirm", color: WINE, action: "Merge" },
-  { name: "Luis Herrera", contact: "lherrera@outlook.com · (213) 887-3320", matched: "Matches archived enquiry LD-0388", detail: "Submitted the 2024 query form, never booked. New submission 9 Aug.", verdict: "Same person — re-engagement", color: ORANGE, action: "Merge and reopen" },
-  { name: "J. Herrera", contact: "no email · (213) 887-3320", matched: "Phone matches LD-0388", detail: "AI receptionist call, caller gave initial only", verdict: "Likely same household", color: "var(--fg-3)", action: "Merge" },
-];
+// The Deduplication queue is now driven by live data — see
+// components/DedupeQueue.jsx and lib/dedupe.js. (The old mock DEDUPE rows were
+// removed when that section went live.)
 
 export const LANES = [
   { name: "Deportation", urgency: "Very urgent", window: "1–7 days", color: WINE, note: "Proposal goes out the same hour as the CE. Calls carry the follow-up; email only backs them up." },

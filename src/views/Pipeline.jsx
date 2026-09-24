@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
-import { boardFor, DEDUPE } from "../data.js";
+import { boardFor } from "../data.js";
 import { useLeads } from "../hooks/useLeads.js";
 import { useAttribution } from "../hooks/useAttribution.js";
 import { leadDisplayName, SOURCE_TYPE_LABELS } from "../lib/leads.js";
 import { firstTouchByLead, CHANNEL_DISPLAY_LABEL } from "../lib/attribution.js";
+import DedupeQueue from "../components/DedupeQueue.jsx";
 
 const SOURCE_TYPE_STYLES = {
   lead: { bg: "var(--brill-orange-100)", fg: "var(--brill-wine)" },
@@ -138,46 +139,7 @@ export default function Pipeline({ showDedupeFlags, onOpenLead }) {
         ))}
       </div>
 
-      <section style={{ background: "var(--surface-raised)", borderRadius: "var(--radius-md)", boxShadow: "var(--shadow-sm)", padding: "var(--space-5)", display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
-        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>Deduplication queue</h2>
-        <p style={{ margin: 0, fontSize: 15, color: "var(--fg-2)", lineHeight: 1.5, maxWidth: "80ch" }}>
-          Email is the primary key, normalised 10-digit phone the secondary. A match appends activity to the existing record. A match with a different name stops here for a human to confirm.
-        </p>
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
-          {DEDUPE.map((d) => (
-            <div
-              key={d.name + d.matched}
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1.2fr 1.6fr 1fr auto",
-                gap: "var(--space-4)",
-                alignItems: "center",
-                padding: "var(--space-4)",
-                borderRadius: "var(--radius-sm)",
-                background: "var(--surface-muted)",
-              }}
-            >
-              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                <span style={{ fontSize: 15, fontWeight: 600 }}>{d.name}</span>
-                <span style={{ fontSize: 12, color: "var(--fg-3)" }}>{d.contact}</span>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                <span style={{ fontSize: 13, color: "var(--fg-2)" }}>{d.matched}</span>
-                <span style={{ fontSize: 12, color: "var(--fg-3)" }}>{d.detail}</span>
-              </div>
-              <span style={{ fontSize: 12, fontWeight: 600, color: d.color }}>{d.verdict}</span>
-              <div style={{ display: "flex", gap: "var(--space-2)" }}>
-                <span style={{ fontSize: 13, fontWeight: 600, padding: "8px 14px", borderRadius: "var(--radius-md)", background: "var(--brill-blue)", color: "var(--brill-white)" }}>
-                  {d.action}
-                </span>
-                <span style={{ fontSize: 13, fontWeight: 600, padding: "8px 14px", borderRadius: "var(--radius-md)", border: "1px solid var(--border-default)", color: "var(--fg-2)" }}>
-                  Keep separate
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
+      <DedupeQueue leadRows={liveLeads.leads} ready={liveLeads.status === "ready"} />
 
       <section style={{ background: "var(--surface-raised)", borderRadius: "var(--radius-md)", boxShadow: "var(--shadow-sm)", padding: "var(--space-5)", display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
