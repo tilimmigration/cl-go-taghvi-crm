@@ -86,9 +86,18 @@ export default function Dashboard({ dateFrom, dateTo, showTargets }) {
   const leadsCeBookedCount = ready ? liveLeadRecords.filter(isCeBookedLead).length : null;
   const ceBookedCount = ready ? leadsCeBookedCount + dealStats.ceBooked : null;
 
+  // The "Call logs tracker" board (Monday 18414961803) is synced into
+  // crm_calls — every crm_calls row comes from it — and already shows in the
+  // Leads list (tagged "Call"). Per request, the "Total unique leads" KPI adds
+  // the call-log count to the unique CRM leads. The funnel denominators below
+  // deliberately stay on leads-only, so lead→CE→signed conversion rates aren't
+  // diluted by call-log volume.
+  const liveCallLogCount = ready ? liveLeads.leads.filter((l) => l._sourceType === "call" && inRange(l)).length : null;
+  const totalLeadsWithCallLog = ready ? liveLeadCount + liveCallLogCount : null;
+
   const liveKpiValues = ready
     ? {
-        "Total unique leads": String(liveLeadCount),
+        "Total unique leads": String(totalLeadsWithCallLog),
         "CE booked": String(ceBookedCount),
         // "Proposal Pending Acceptance" mirrors "Proposals sent" on
         // purpose — both show the Deals board's "Pending Acceptance" group
@@ -99,8 +108,12 @@ export default function Dashboard({ dateFrom, dateTo, showTargets }) {
         "Revenue": `$${dealStats.revenue.toLocaleString()}`,
       }
     : {};
+  // Per-tile subtitle overrides; other live tiles keep the generic label.
+  const liveKpiDeltas = ready ? { "Total unique leads": `${liveLeadCount} leads + ${liveCallLogCount} call logs` } : {};
   const kpis = kpisFor("month").map((k) =>
-    liveKpiValues[k.label] !== undefined ? { ...k, value: liveKpiValues[k.label], delta: "Live from Monday.com" } : k,
+    liveKpiValues[k.label] !== undefined
+      ? { ...k, value: liveKpiValues[k.label], delta: liveKpiDeltas[k.label] || "Live from Monday.com" }
+      : k,
   );
 
   const funnel = ready ? buildLiveFunnel(liveLeadCount, ceBookedCount, dealStats) : FUNNEL;
