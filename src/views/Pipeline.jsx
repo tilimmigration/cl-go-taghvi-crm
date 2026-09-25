@@ -1,7 +1,10 @@
-import { useState } from "react";
-import { boardFor, DEDUPE } from "../data.js";
+import { useMemo, useState } from "react";
+import { boardFor } from "../data.js";
 import { useLeads } from "../hooks/useLeads.js";
+import { useAttribution } from "../hooks/useAttribution.js";
 import { leadDisplayName, SOURCE_TYPE_LABELS } from "../lib/leads.js";
+import { firstTouchByLead, CHANNEL_DISPLAY_LABEL } from "../lib/attribution.js";
+import DedupeQueue from "../components/DedupeQueue.jsx";
 
 const SOURCE_TYPE_STYLES = {
   lead: { bg: "var(--brill-orange-100)", fg: "var(--brill-wine)" },
@@ -25,6 +28,14 @@ const LIVE_LEAD_DETAIL_FIELDS = [
 export default function Pipeline({ showDedupeFlags, onOpenLead }) {
   const board = boardFor(showDedupeFlags);
   const liveLeads = useLeads();
+  // First-touch marketing source per lead, joined at read time from the
+  // persisted WhatConverts attribution (public.lead_attribution). Read-only:
+  // crm_leads is never written to (Monday's full-row upsert would clobber it),
+  // so the source is displayed here from the same source of truth the
+  // Dashboard's Channel Performance table uses, keyed by monday_item_id.
+  const attribution = useAttribution();
+  const attrReady = attribution.status === "ready";
+  const firstTouchByMonday = useMemo(() => firstTouchByLead(attribution.rows || []), [attribution.rows]);
   const [expandedLeadId, setExpandedLeadId] = useState(null);
 
   return (
@@ -128,52 +139,13 @@ export default function Pipeline({ showDedupeFlags, onOpenLead }) {
         ))}
       </div>
 
-      <section style={{ background: "var(--surface-raised)", borderRadius: "var(--radius-md)", boxShadow: "var(--shadow-sm)", padding: "var(--space-5)", display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
-        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>Deduplication queue</h2>
-        <p style={{ margin: 0, fontSize: 15, color: "var(--fg-2)", lineHeight: 1.5, maxWidth: "80ch" }}>
-          Email is the primary key, normalised 10-digit phone the secondary. A match appends activity to the existing record. A match with a different name stops here for a human to confirm.
-        </p>
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
-          {DEDUPE.map((d) => (
-            <div
-              key={d.name + d.matched}
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1.2fr 1.6fr 1fr auto",
-                gap: "var(--space-4)",
-                alignItems: "center",
-                padding: "var(--space-4)",
-                borderRadius: "var(--radius-sm)",
-                background: "var(--surface-muted)",
-              }}
-            >
-              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                <span style={{ fontSize: 15, fontWeight: 600 }}>{d.name}</span>
-                <span style={{ fontSize: 12, color: "var(--fg-3)" }}>{d.contact}</span>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                <span style={{ fontSize: 13, color: "var(--fg-2)" }}>{d.matched}</span>
-                <span style={{ fontSize: 12, color: "var(--fg-3)" }}>{d.detail}</span>
-              </div>
-              <span style={{ fontSize: 12, fontWeight: 600, color: d.color }}>{d.verdict}</span>
-              <div style={{ display: "flex", gap: "var(--space-2)" }}>
-                <span style={{ fontSize: 13, fontWeight: 600, padding: "8px 14px", borderRadius: "var(--radius-md)", background: "var(--brill-blue)", color: "var(--brill-white)" }}>
-                  {d.action}
-                </span>
-                <span style={{ fontSize: 13, fontWeight: 600, padding: "8px 14px", borderRadius: "var(--radius-md)", border: "1px solid var(--border-default)", color: "var(--fg-2)" }}>
-                  Keep separate
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
+      <DedupeQueue leadRows={liveLeads.leads} ready={liveLeads.status === "ready"} />
 
       <section style={{ background: "var(--surface-raised)", borderRadius: "var(--radius-md)", boxShadow: "var(--shadow-sm)", padding: "var(--space-5)", display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
           <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>Leads (synced from Supabase)</h2>
           <p style={{ margin: 0, fontSize: 13, color: "var(--fg-3)" }}>
-            Reads the crm_leads table directly. Populates automatically once Monday.com leads are imported — the board above stays illustrative until then.
+            Reads the crm_leads table directly. Populates automatically once Monday.com leads are imported — the board above stays illustrative until then. Each lead also shows its WhatConverts first-touch source, joined at read time from the attribution data (nothing is written back to the CRM record).
           </p>
         </div>
 
@@ -209,6 +181,29 @@ export default function Pipeline({ showDedupeFlags, onOpenLead }) {
               const expanded = expandedLeadId === lead.id;
               const customFieldEntries = Object.entries(lead.custom_fields || {});
               const relatedLead = lead.related_lead_id ? liveLeads.leads.find((l) => l.id === lead.related_lead_id) : null;
+              // First-touch attribution for this lead. Attribution is keyed by
+              // the Leads-board monday_item_id, so only lead rows can match;
+              // calls/deals carry a different board's item id.
+              const attrMatch = lead._sourceType === "lead" && lead.monday_item_id != null ? firstTouchByMonday.get(String(lead.monday_item_id)) ?? null : null;
+              const attrChannel = attrMatch?.channel ?? null;
+              const attrChannelLabel = attrChannel ? CHANNEL_DISPLAY_LABEL[attrChannel] || attrChannel : null;
+              // The literal WhatConverts "Lead source" for the pill and detail —
+              // falls back to the channel bucket only if the raw source is blank.
+              const attrSourceLabel = attrMatch ? attrMatch.source || attrChannelLabel : null;
+              // Detail cells for the expanded row's WhatConverts block.
+              const wcCells =
+                lead._sourceType !== "lead"
+                  ? []
+                  : !attrReady
+                    ? [{ label: "First-touch source (WhatConverts)", value: "Loading…", muted: true }]
+                    : attrMatch
+                      ? [
+                          { label: "Lead source (WhatConverts)", value: attrMatch.source || "—", muted: false },
+                          ...(attrMatch.medium ? [{ label: "Medium", value: attrMatch.medium, muted: false }] : []),
+                          ...(attrMatch.campaign ? [{ label: "Campaign", value: attrMatch.campaign, muted: false }] : []),
+                          { label: "First-touch channel", value: attrChannelLabel || "—", muted: false },
+                        ]
+                      : [{ label: "First-touch source (WhatConverts)", value: "No WhatConverts match", muted: true }];
 
               return (
                 <div key={lead.id} style={{ display: "flex", flexDirection: "column" }}>
@@ -248,7 +243,24 @@ export default function Pipeline({ showDedupeFlags, onOpenLead }) {
                           {SOURCE_TYPE_LABELS[lead._sourceType] || "Lead"}
                         </span>
                       </div>
-                      <span style={{ fontSize: 12, color: "var(--fg-3)" }}>{lead.company || "—"}</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                        <span style={{ fontSize: 12, color: "var(--fg-3)" }}>{lead.company || "—"}</span>
+                        {attrReady && attrSourceLabel && (
+                          <span
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 600,
+                              padding: "1px 7px",
+                              borderRadius: "var(--radius-pill)",
+                              border: "1px solid var(--border-default)",
+                              color: "var(--fg-2)",
+                            }}
+                            title="Lead source (WhatConverts first touch)"
+                          >
+                            {attrSourceLabel}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                       <span style={{ fontSize: 13, color: "var(--fg-2)" }}>{lead.email || "—"}</span>
@@ -272,6 +284,14 @@ export default function Pipeline({ showDedupeFlags, onOpenLead }) {
                       }}
                     >
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: "var(--space-3) var(--space-4)" }}>
+                        {wcCells.map((c) => (
+                          <div key={c.label} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                            <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--fg-3)" }}>
+                              {c.label}
+                            </span>
+                            <span style={{ fontSize: 13, color: c.muted ? "var(--fg-3)" : "var(--fg-2)" }}>{c.value}</span>
+                          </div>
+                        ))}
                         {LIVE_LEAD_DETAIL_FIELDS.map(([label, key]) =>
                           lead[key] ? (
                             <div key={key} style={{ display: "flex", flexDirection: "column", gap: 2 }}>

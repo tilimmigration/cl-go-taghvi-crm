@@ -1,6 +1,8 @@
-import { kpisFor, FUNNEL, CASE_TYPES, CHANNELS, ALERTS, NAVY, ORANGE, WINE } from "../data.js";
+import { kpisFor, FUNNEL, CASE_TYPES, ALERTS, NAVY, ORANGE, WINE } from "../data.js";
 import { useLeads } from "../hooks/useLeads.js";
+import { useAttribution } from "../hooks/useAttribution.js";
 import { aggregateDealStats } from "../lib/dealStats.js";
+import { buildChannelTable } from "../lib/attribution.js";
 import { isCeBookedLead } from "../lib/leads.js";
 
 const card = { background: "var(--surface-raised)", borderRadius: "var(--radius-md)", boxShadow: "var(--shadow-sm)" };
@@ -55,6 +57,7 @@ function createdInRange(record, from, to) {
 
 export default function Dashboard({ dateFrom, dateTo, showTargets }) {
   const liveLeads = useLeads();
+  const attribution = useAttribution();
   const rangeLabel = dateFrom || dateTo ? `${dateFrom || "earliest"} → ${dateTo || "today"}` : "All time";
 
   // Everything on this dashboard is illustrative mock data (see data.js)
@@ -83,9 +86,18 @@ export default function Dashboard({ dateFrom, dateTo, showTargets }) {
   const leadsCeBookedCount = ready ? liveLeadRecords.filter(isCeBookedLead).length : null;
   const ceBookedCount = ready ? leadsCeBookedCount + dealStats.ceBooked : null;
 
+  // The "Call logs tracker" board (Monday 18414961803) is synced into
+  // crm_calls — every crm_calls row comes from it — and already shows in the
+  // Leads list (tagged "Call"). Per request, the "Total unique leads" KPI adds
+  // the call-log count to the unique CRM leads. The funnel denominators below
+  // deliberately stay on leads-only, so lead→CE→signed conversion rates aren't
+  // diluted by call-log volume.
+  const liveCallLogCount = ready ? liveLeads.leads.filter((l) => l._sourceType === "call" && inRange(l)).length : null;
+  const totalLeadsWithCallLog = ready ? liveLeadCount + liveCallLogCount : null;
+
   const liveKpiValues = ready
     ? {
-        "Total unique leads": String(liveLeadCount),
+        "Total unique leads": String(totalLeadsWithCallLog),
         "CE booked": String(ceBookedCount),
         // "Proposal Pending Acceptance" mirrors "Proposals sent" on
         // purpose — both show the Deals board's "Pending Acceptance" group
@@ -96,11 +108,34 @@ export default function Dashboard({ dateFrom, dateTo, showTargets }) {
         "Revenue": `$${dealStats.revenue.toLocaleString()}`,
       }
     : {};
+  // Per-tile subtitle overrides; other live tiles keep the generic label.
+  const liveKpiDeltas = ready ? { "Total unique leads": `${liveLeadCount} leads + ${liveCallLogCount} call logs` } : {};
   const kpis = kpisFor("month").map((k) =>
-    liveKpiValues[k.label] !== undefined ? { ...k, value: liveKpiValues[k.label], delta: "Live from Monday.com" } : k,
+    liveKpiValues[k.label] !== undefined
+      ? { ...k, value: liveKpiValues[k.label], delta: liveKpiDeltas[k.label] || "Live from Monday.com" }
+      : k,
   );
 
   const funnel = ready ? buildLiveFunnel(liveLeadCount, ceBookedCount, dealStats) : FUNNEL;
+
+  // Channel performance — real first-touch attribution from lead_attribution
+  // (Layer: WhatConverts), joined to the existing CRM lifecycle for CE/Signed.
+  // It is all-time (not date-filtered) and uses the FULL unfiltered lead/deal
+  // sets, so the total reconciles to the unique attributed CRM-lead count.
+  // Spend metrics (CPL/CPCE/CAC) have no source and render as "—".
+  const attrReady = attribution.status === "ready";
+  const allLeadRecords = ready ? liveLeads.leads.filter((l) => l._sourceType === "lead") : [];
+  const allDeals = ready ? liveLeads.leads.filter((l) => l._sourceType === "deal") : [];
+  const channelTable = attrReady && ready ? buildChannelTable(attribution.rows, allLeadRecords, allDeals) : null;
+  const channelRows = channelTable
+    ? [
+        ...channelTable.rows.map((r) => ({ name: r.label, leads: r.leads, ces: r.ces, signed: r.signed, weight: 500, isTotal: false, muted: false })),
+        // Full accounting: leads with no matched WhatConverts touch, so the
+        // channels (attributed) + this row reconcile to every CRM lead.
+        { name: "No WhatConverts match", leads: channelTable.unattributed, ces: null, signed: null, weight: 500, isTotal: false, muted: true },
+        { name: "Total leads", leads: channelTable.totalLeads, ces: channelTable.total.ces, signed: channelTable.total.signed, weight: 700, isTotal: true, muted: false },
+      ]
+    : [];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
@@ -195,47 +230,67 @@ export default function Dashboard({ dateFrom, dateTo, showTargets }) {
       <section style={{ ...card, padding: "var(--space-5)", display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "var(--space-3)" }}>
           <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>Channel performance — first touch</h2>
-          <span style={{ fontSize: 13, color: "var(--fg-3)" }}>Blended CAC alongside channel CAC. Multi-touch leads keep first-touch credit.</span>
+          <span style={{ fontSize: 13, color: "var(--fg-3)" }}>
+            {attrReady
+              ? "First touch from WhatConverts · unique CRM leads · all time"
+              : attribution.status === "error"
+                ? "Attribution unavailable"
+                : "Loading attribution…"}
+          </span>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1.6fr repeat(6, minmax(0,1fr))", gap: 0, fontSize: 14 }}>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "subgrid",
-              gridColumn: "1 / -1",
-              paddingBottom: "var(--space-2)",
-              borderBottom: "1px solid var(--border-default)",
-              fontSize: 11,
-              fontWeight: 600,
-              letterSpacing: "0.06em",
-              textTransform: "uppercase",
-              color: "var(--fg-3)",
-            }}
-          >
-            <span>Channel</span><span>Leads</span><span>CPL</span><span>CEs</span><span>CPCE</span><span>Signed</span><span>CAC</span>
-          </div>
-          {CHANNELS.map((ch) => (
+        <span style={{ fontSize: 12, color: "var(--fg-3)", marginTop: -8 }}>
+          Leads are unique CRM leads by their earliest WhatConverts touch (each counted once). CE and Signed come from the CRM/Monday lifecycle where the deal-to-lead link is available; cost metrics (CPL, CPCE, CAC) have no ad-spend source. Unavailable values show “—”.
+        </span>
+        {channelTable ? (
+          <>
+          <span style={{ fontSize: 12, color: "var(--fg-3)" }}>
+            {`${channelTable.uniqueAttributed} of ${channelTable.totalLeads} leads have a WhatConverts first touch · ${channelTable.unattributed} with no matched WhatConverts touch`}
+          </span>
+          <div style={{ display: "grid", gridTemplateColumns: "1.6fr repeat(6, minmax(0,1fr))", gap: 0, fontSize: 14 }}>
             <div
-              key={ch.name}
               style={{
                 display: "grid",
                 gridTemplateColumns: "subgrid",
                 gridColumn: "1 / -1",
-                padding: "var(--space-3) 0",
-                borderBottom: "1px solid var(--border-subtle)",
-                alignItems: "center",
+                paddingBottom: "var(--space-2)",
+                borderBottom: "1px solid var(--border-default)",
+                fontSize: 11,
+                fontWeight: 600,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                color: "var(--fg-3)",
               }}
             >
-              <span style={{ fontWeight: ch.weight }}>{ch.name}</span>
-              <span>{ch.leads}</span>
-              <span>{ch.cpl}</span>
-              <span>{ch.ces}</span>
-              <span>{ch.cpce}</span>
-              <span>{ch.signed}</span>
-              <span style={{ fontWeight: 600, color: ch.cacColor }}>{ch.cac}</span>
+              <span>Channel</span><span>Leads</span><span>CPL</span><span>CEs</span><span>CPCE</span><span>Signed</span><span>CAC</span>
             </div>
-          ))}
-        </div>
+            {channelRows.map((ch) => (
+              <div
+                key={ch.name}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "subgrid",
+                  gridColumn: "1 / -1",
+                  padding: "var(--space-3) 0",
+                  borderBottom: "1px solid var(--border-subtle)",
+                  alignItems: "center",
+                }}
+              >
+                <span style={{ fontWeight: ch.weight, color: ch.muted ? "var(--fg-3)" : undefined }}>{ch.name}</span>
+                <span style={{ fontWeight: ch.isTotal ? 700 : 400 }}>{ch.leads}</span>
+                <span style={{ color: "var(--fg-3)" }}>—</span>
+                <span style={channelTable.ceAvailable && !ch.muted ? undefined : { color: "var(--fg-3)" }}>{channelTable.ceAvailable && !ch.muted && ch.ces != null ? ch.ces : "—"}</span>
+                <span style={{ color: "var(--fg-3)" }}>—</span>
+                <span style={channelTable.signedAvailable && !ch.muted ? undefined : { color: "var(--fg-3)" }}>{channelTable.signedAvailable && !ch.muted && ch.signed != null ? ch.signed : "—"}</span>
+                <span style={{ color: "var(--fg-3)" }}>—</span>
+              </div>
+            ))}
+          </div>
+          </>
+        ) : (
+          <p style={{ margin: 0, fontSize: 13, color: "var(--fg-3)" }}>
+            {attribution.status === "error" ? "Channel attribution is temporarily unavailable." : "Loading channel attribution…"}
+          </p>
+        )}
       </section>
 
       <section style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: "var(--space-4)" }}>
