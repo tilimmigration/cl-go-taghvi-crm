@@ -61,8 +61,8 @@ export default function Dashboard({ dateFrom, dateTo, showTargets }) {
   const rangeLabel = dateFrom || dateTo ? `${dateFrom || "earliest"} → ${dateTo || "today"}` : "All time";
 
   // Everything on this dashboard is illustrative mock data (see data.js)
-  // except: the "Total unique leads" KPI tile, the CE booked/CE completed/
-  // Proposals sent/Contracts signed/Revenue KPI tiles, and the funnel
+  // except: the "Total unique leads" KPI tile, the CE booked/Proposal Pending
+  // Acceptance/Contracts signed/Revenue KPI tiles, and the funnel
   // conversion section — all swapped for real counts once Supabase has
   // responded. Case-type performance, channel performance and the alert
   // cards still need data (spend, per-case-type CE/sign tracking) we
@@ -99,11 +99,9 @@ export default function Dashboard({ dateFrom, dateTo, showTargets }) {
     ? {
         "Total unique leads": String(totalLeadsWithCallLog),
         "CE booked": String(ceBookedCount),
-        // "Proposal Pending Acceptance" mirrors "Proposals sent" on
-        // purpose — both show the Deals board's "Pending Acceptance" group
-        // count, per the client's request that the two tiles read the same.
+        // "Proposal Pending Acceptance" shows the Deals board's "Pending
+        // Acceptance" group count.
         "Proposal Pending Acceptance": String(dealStats.proposalSent),
-        "Proposals sent": String(dealStats.proposalSent),
         "Contracts signed": String(dealStats.contractSigned),
         "Revenue": `$${dealStats.revenue.toLocaleString()}`,
       }
@@ -139,7 +137,7 @@ export default function Dashboard({ dateFrom, dateTo, showTargets }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0,1fr))", gap: "var(--space-4)" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0,1fr))", gap: "var(--space-4)" }}>
         {kpis.map((k) => (
           <div key={k.label} style={{ ...card, padding: "var(--space-4)", display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
             <span style={{ fontSize: 12, fontWeight: 500, color: "var(--fg-3)", lineHeight: 1.35 }}>{k.label}</span>
