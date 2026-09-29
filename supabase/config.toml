@@ -2,3 +2,9 @@ project_id = "taghavi-business-scorecard"
 
 [functions.monday-webhook]
 verify_jwt = false
+
+# Calendly webhook: authenticated by the Calendly webhook signature (HMAC), not
+# a Supabase JWT — so JWT verification is disabled and the function verifies the
+# Calendly-Webhook-Signature header itself.
+[functions.calendly-webhook]
+verify_jwt = false
