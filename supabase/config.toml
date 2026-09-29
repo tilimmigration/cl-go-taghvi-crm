@@ -8,3 +8,10 @@ verify_jwt = false
 # Calendly-Webhook-Signature header itself.
 [functions.calendly-webhook]
 verify_jwt = false
+
+# Historical Calendly backfill (calendly-sync): admin-only. Authenticated by the
+# Supabase service_role key (Bearer) OR the optional CALENDLY_SYNC_TRIGGER_TOKEN
+# via the X-Sync-Trigger header — not a Supabase JWT — so JWT verification is
+# disabled and the function performs its own admin auth.
+[functions.calendly-sync]
+verify_jwt = false
