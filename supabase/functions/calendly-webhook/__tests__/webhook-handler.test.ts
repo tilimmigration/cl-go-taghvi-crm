@@ -189,6 +189,7 @@ test("6. existing explicit CE Completed survives a Calendly webhook update", asy
   const rows = calendly(supabase);
   assert.equal(rows.length, 1);
   assert.equal(rows[0].status, "canceled", "lifecycle updated");
+  assert.equal(rows[0].ce_booked, true, "booking history (ce_booked) preserved through cancellation");
   assert.equal(rows[0].ce_completed, true, "explicit completion preserved");
   assert.equal(rows[0].ce_completed_at, "2026-10-01T11:00:00.000000Z");
   assert.equal(rows[0].ce_completed_by, "paralegal@taghavilaw.com");
