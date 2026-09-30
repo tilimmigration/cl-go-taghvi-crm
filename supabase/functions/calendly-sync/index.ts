@@ -60,7 +60,11 @@ function timingSafeEqualStr(a: string, b: string): boolean {
 
 const CRM_COLUMNS = "id, email, monday_item_id";
 const CRM_PAGE = 1000;
-const EXISTING_IN_CHUNK = 200;
+// calendly_event_uri values are long (~70 chars, URL-encoded ~120). PostgREST
+// puts `.in(...)` values in the GET query string, so a large chunk builds a huge
+// URL that the HTTP/2 layer can reject ("stream error / protocol error"). Keep
+// this small so the existing-row lookup URL stays well within limits.
+const EXISTING_IN_CHUNK = 25;
 const UPSERT_CHUNK = 500;
 const DEFAULT_MAX_EVENTS = 5000;
 const DEFAULT_MAX_PAGES = 200;
@@ -184,16 +188,18 @@ export async function handleCalendlySync(req: Request, overrides: HandleSyncOver
     let nextPage: string | null = null;
     let pageUrl = startPageUrl;
 
-    outer: while (true) {
+    const startedAt = Date.now();
+    const timeBudgetMs = 90_000; // stop at a PAGE boundary after ~90s; resume via next_page
+
+    while (true) {
       const page = await calendly.listScheduledEvents({ organization, count: 100, status: statusFilter, pageUrl });
       pagesFetched += 1;
 
+      // Process the WHOLE page. Calendly paginates at the page level, so we must
+      // never stop mid-page and resume from next_page (that would skip the rest
+      // of this page). maxEvents / maxPages / the time budget are all enforced at
+      // page boundaries only.
       for (const se of page.collection) {
-        if (eventsFound >= maxEvents) {
-          hasMore = true;
-          nextPage = page.nextPage;
-          break outer;
-        }
         eventsFound += 1;
         // deno-lint-ignore no-explicit-any
         const seAny = se as any;
@@ -230,9 +236,14 @@ export async function handleCalendlySync(req: Request, overrides: HandleSyncOver
         }
       }
 
-      if (!page.nextPage || pagesFetched >= maxPages) {
+      if (!page.nextPage) {
+        hasMore = false;
+        nextPage = null;
+        break;
+      }
+      if (eventsFound >= maxEvents || pagesFetched >= maxPages || Date.now() - startedAt >= timeBudgetMs) {
+        hasMore = true;
         nextPage = page.nextPage;
-        hasMore = Boolean(page.nextPage);
         break;
       }
       pageUrl = page.nextPage;
