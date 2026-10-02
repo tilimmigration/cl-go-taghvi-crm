@@ -118,13 +118,21 @@ export default function Dashboard({ dateFrom, dateTo, showTargets }) {
 
   // Channel performance — real first-touch attribution from lead_attribution
   // (Layer: WhatConverts), joined to the existing CRM lifecycle for CE/Signed.
-  // It is all-time (not date-filtered) and uses the FULL unfiltered lead/deal
-  // sets, so the total reconciles to the unique attributed CRM-lead count.
-  // Spend metrics (CPL/CPCE/CAC) have no source and render as "—".
+  // Date-filtered just like the KPIs and funnel: it uses the SAME in-range
+  // lead/deal sets (liveLeadRecords/liveDeals) AND restricts the WhatConverts
+  // touches to those whose matched lead is in range — the per-channel "Leads"
+  // count is driven by the attribution rows, so both must be scoped for the
+  // table to reflect the selected range and still reconcile to the in-range
+  // unique attributed CRM-lead count. Spend metrics (CPL/CPCE/CAC) have no
+  // source and render as "—".
   const attrReady = attribution.status === "ready";
-  const allLeadRecords = ready ? liveLeads.leads.filter((l) => l._sourceType === "lead") : [];
-  const allDeals = ready ? liveLeads.leads.filter((l) => l._sourceType === "deal") : [];
-  const channelTable = attrReady && ready ? buildChannelTable(attribution.rows, allLeadRecords, allDeals) : null;
+  const inRangeLeadMondayIds = new Set(
+    liveLeadRecords.map((l) => (l.monday_item_id != null ? String(l.monday_item_id) : null)).filter(Boolean),
+  );
+  const inRangeAttrRows = attrReady
+    ? attribution.rows.filter((r) => r.monday_item_id != null && inRangeLeadMondayIds.has(String(r.monday_item_id)))
+    : [];
+  const channelTable = attrReady && ready ? buildChannelTable(inRangeAttrRows, liveLeadRecords, liveDeals) : null;
   const channelRows = channelTable
     ? [
         ...channelTable.rows.map((r) => ({ name: r.label, leads: r.leads, ces: r.ces, signed: r.signed, weight: 500, isTotal: false, muted: false })),
@@ -230,7 +238,7 @@ export default function Dashboard({ dateFrom, dateTo, showTargets }) {
           <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>Channel performance — first touch</h2>
           <span style={{ fontSize: 13, color: "var(--fg-3)" }}>
             {attrReady
-              ? "First touch from WhatConverts · unique CRM leads · all time"
+              ? `First touch from WhatConverts · unique CRM leads · ${rangeLabel}`
               : attribution.status === "error"
                 ? "Attribution unavailable"
                 : "Loading attribution…"}
