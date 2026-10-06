@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { boardFor } from "../data.js";
 import { useLeads } from "../hooks/useLeads.js";
 import { useAttribution } from "../hooks/useAttribution.js";
+import { useCalendly } from "../hooks/useCalendly.js";
 import { leadDisplayName, SOURCE_TYPE_LABELS } from "../lib/leads.js";
 import { firstTouchByLead, CHANNEL_DISPLAY_LABEL } from "../lib/attribution.js";
 import DedupeQueue from "../components/DedupeQueue.jsx";
@@ -36,6 +37,21 @@ export default function Pipeline({ showDedupeFlags, onOpenLead }) {
   const attribution = useAttribution();
   const attrReady = attribution.status === "ready";
   const firstTouchByMonday = useMemo(() => firstTouchByLead(attribution.rows || []), [attribution.rows]);
+  // Calendly bookings (read-only, from calendly_events), used to surface a
+  // lead's CE as "CE Booked" in the status column below, matched by email.
+  // crm_leads.status itself is never written — Monday's full-row upsert would
+  // clobber it (which is exactly why these matched leads still read "Booked"
+  // from Monday) — so the "CE Booked" label is derived here at read time, the
+  // same pattern the WhatConverts source uses. Survives every Monday re-sync.
+  const calendly = useCalendly();
+  const calendlyBookedEmails = useMemo(() => {
+    const set = new Set();
+    if (calendly.status !== "ready") return set;
+    for (const r of calendly.rows) {
+      if ((r.status || "") === "booked" && r.invitee_email) set.add(String(r.invitee_email).trim().toLowerCase());
+    }
+    return set;
+  }, [calendly.status, calendly.rows]);
   const [expandedLeadId, setExpandedLeadId] = useState(null);
 
   return (
@@ -185,6 +201,16 @@ export default function Pipeline({ showDedupeFlags, onOpenLead }) {
               // the Leads-board monday_item_id, so only lead rows can match;
               // calls/deals carry a different board's item id.
               const attrMatch = lead._sourceType === "lead" && lead.monday_item_id != null ? firstTouchByMonday.get(String(lead.monday_item_id)) ?? null : null;
+              // A lead with a matching Calendly booking is shown as "CE Booked"
+              // in the status column, whatever the raw Monday status reads (for
+              // these it still reads "Booked" because the Monday sync overwrites
+              // any status we'd write back). Only lead rows are relabelled —
+              // calls/deals keep their own stage, which sits further down the
+              // funnel and must not be pulled back to "CE Booked".
+              const ceBookedFromCalendly =
+                lead._sourceType === "lead" &&
+                Boolean(lead.email) &&
+                calendlyBookedEmails.has(String(lead.email).trim().toLowerCase());
               const attrChannel = attrMatch?.channel ?? null;
               const attrChannelLabel = attrChannel ? CHANNEL_DISPLAY_LABEL[attrChannel] || attrChannel : null;
               // The literal WhatConverts "Lead source" for the pill and detail —
@@ -266,7 +292,24 @@ export default function Pipeline({ showDedupeFlags, onOpenLead }) {
                       <span style={{ fontSize: 13, color: "var(--fg-2)" }}>{lead.email || "—"}</span>
                       <span style={{ fontSize: 12, color: "var(--fg-3)" }}>{lead.phone || "—"}</span>
                     </div>
-                    <span style={{ fontSize: 13, color: "var(--fg-2)" }}>{lead.status || lead.stage || "—"}</span>
+                    {ceBookedFromCalendly ? (
+                      <span
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 600,
+                          justifySelf: "start",
+                          padding: "3px 8px",
+                          borderRadius: "var(--radius-pill)",
+                          background: "var(--brill-orange-100)",
+                          color: "var(--brill-wine)",
+                        }}
+                        title="CE Booked — matched to a Calendly booking"
+                      >
+                        CE Booked
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: 13, color: "var(--fg-2)" }}>{lead.status || lead.stage || "—"}</span>
+                    )}
                     <span style={{ fontSize: 13, color: "var(--fg-2)" }}>{lead.owner_name || "Unassigned"}</span>
                   </button>
 
