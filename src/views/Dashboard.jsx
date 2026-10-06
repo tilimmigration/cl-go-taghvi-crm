@@ -8,6 +8,17 @@ import { isCeBookedLead } from "../lib/leads.js";
 
 const card = { background: "var(--surface-raised)", borderRadius: "var(--radius-md)", boxShadow: "var(--shadow-sm)" };
 
+// The month KPI tiles that are backed by live Supabase data (not illustrative
+// mock). While their data is still loading we show a shimmer skeleton instead
+// of the mock number, so a fake value doesn't flash and then change.
+const LIVE_KPI_LABELS = new Set([
+  "Total unique leads",
+  "CE booked",
+  "Proposal Pending Acceptance",
+  "Contracts signed",
+  "Revenue",
+]);
+
 function pct(numerator, denominator) {
   return denominator > 0 ? Math.round((numerator / denominator) * 100) : 0;
 }
@@ -103,16 +114,35 @@ export default function Dashboard({ dateFrom, dateTo, showTargets }) {
   const leadsCeBookedCount = ready ? liveLeadRecords.filter(isCeBookedLead).length : null;
   const ceBookedCount = ready ? leadsCeBookedCount + dealStats.ceBooked : null;
 
-  // "CE booked" KPI tile, sourced LIVE FROM CALENDLY: the count of active
-  // Calendly bookings (status 'booked') whose booking date falls in the chosen
-  // "Created" range. Read from calendly_events (see useCalendly), so it reflects
-  // real Calendly activity and survives Monday re-syncs — unlike writing
-  // crm_leads.status, which the Monday import overwrites. The funnel below is
-  // left on the Monday lead/deal counts; only this tile switches to Calendly.
+  // "CE booked" KPI tile, sourced LIVE FROM CALENDLY but SCOPED TO LEADS: the
+  // number of our CRM leads (crm_leads) who have an active Calendly booking
+  // (status 'booked') whose booking date falls in the chosen "Created" range.
+  // Matched by email — invitee_email == a crm_leads email (normalised). This is
+  // the "matching with leads" count the team asked for, NOT every Calendly
+  // booking: most Calendly invitees are historical Deals-board clients with no
+  // Leads-board row, and counting those overstated the tile. Counted as DISTINCT
+  // matching emails, so a lead who rebooked isn't double-counted. Read from
+  // calendly_events (see useCalendly), so it survives Monday re-syncs — unlike
+  // writing crm_leads.status, which the Monday import overwrites. The funnel
+  // below stays on the Monday lead/deal counts; only this tile uses Calendly.
   const calendlyReady = calendly.status === "ready";
-  const calendlyCeBooked = calendlyReady
-    ? calendly.rows.filter((r) => (r.status || "") === "booked" && calendlyBookedInRange(r, dateFrom, dateTo)).length
-    : null;
+  const normEmail = (v) => (v == null ? "" : String(v).trim().toLowerCase());
+  const leadEmailSet = ready
+    ? new Set(liveLeads.leads.filter((l) => l._sourceType === "lead" && l.email).map((l) => normEmail(l.email)).filter(Boolean))
+    : new Set();
+  const calendlyCeBooked =
+    calendlyReady && ready
+      ? new Set(
+          calendly.rows
+            .filter(
+              (r) =>
+                (r.status || "") === "booked" &&
+                calendlyBookedInRange(r, dateFrom, dateTo) &&
+                leadEmailSet.has(normEmail(r.invitee_email)),
+            )
+            .map((r) => normEmail(r.invitee_email)),
+        ).size
+      : null;
 
   // The "Call logs tracker" board (Monday 18414961803) is synced into
   // crm_calls — every crm_calls row comes from it — and already shows in the
@@ -141,11 +171,21 @@ export default function Dashboard({ dateFrom, dateTo, showTargets }) {
         ...(calendlyReady ? { "CE booked": "Live from Calendly" } : {}),
       }
     : {};
-  const kpis = kpisFor("month").map((k) =>
-    liveKpiValues[k.label] !== undefined
-      ? { ...k, value: liveKpiValues[k.label], delta: liveKpiDeltas[k.label] || "Live from Monday.com" }
-      : k,
-  );
+  // Every month KPI is backed by live data, so while it is still loading we show
+  // a skeleton rather than the mock number (which would otherwise flash and then
+  // change under the user). "CE booked" additionally waits on Calendly; if
+  // Calendly errors or isn't configured it falls back to the Monday count rather
+  // than spinning forever. When Supabase itself isn't connected (not_configured /
+  // error / not_authorized, i.e. not "loading"), we keep the illustrative mock
+  // numbers instead of a perpetual loader — the demo fallback, unchanged.
+  const kpis = kpisFor("month").map((k) => {
+    if (!LIVE_KPI_LABELS.has(k.label)) return k;
+    const stillLoading =
+      liveLeads.status === "loading" || (k.label === "CE booked" && ready && calendly.status === "loading");
+    if (stillLoading) return { ...k, loading: true };
+    if (!ready) return k;
+    return { ...k, value: liveKpiValues[k.label] ?? k.value, delta: liveKpiDeltas[k.label] || "Live from Monday.com" };
+  });
 
   const funnel = ready ? buildLiveFunnel(liveLeadCount, ceBookedCount, dealStats) : FUNNEL;
 
@@ -182,8 +222,16 @@ export default function Dashboard({ dateFrom, dateTo, showTargets }) {
         {kpis.map((k) => (
           <div key={k.label} style={{ ...card, padding: "var(--space-4)", display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
             <span style={{ fontSize: 12, fontWeight: 500, color: "var(--fg-3)", lineHeight: 1.35 }}>{k.label}</span>
-            <span style={{ fontSize: 30, fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1 }}>{k.value}</span>
-            <span style={{ fontSize: 12, fontWeight: 600, color: k.color }}>{k.delta}</span>
+            {k.loading ? (
+              <span className="kpi-skeleton" role="status" aria-label={`Loading ${k.label}`} style={{ width: 92, height: 30, marginTop: 1 }} />
+            ) : (
+              <span style={{ fontSize: 30, fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1 }}>{k.value}</span>
+            )}
+            {k.loading ? (
+              <span className="kpi-skeleton" aria-hidden="true" style={{ width: 64, height: 12 }} />
+            ) : (
+              <span style={{ fontSize: 12, fontWeight: 600, color: k.color }}>{k.delta}</span>
+            )}
           </div>
         ))}
       </div>

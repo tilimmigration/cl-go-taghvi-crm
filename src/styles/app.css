@@ -26,3 +26,25 @@ button {
   background: var(--brill-neutral-cool);
   border-radius: 999px;
 }
+
+/* Shimmer placeholder shown in KPI tiles while live data loads, so a mock
+   number doesn't flash and then change under the user. */
+.kpi-skeleton {
+  display: inline-block;
+  border-radius: var(--radius-xs);
+  background: linear-gradient(
+    90deg,
+    var(--surface-muted) 25%,
+    var(--border-subtle) 37%,
+    var(--surface-muted) 63%
+  );
+  background-size: 400px 100%;
+  animation: kpiShimmer 1.2s ease-in-out infinite;
+}
+@keyframes kpiShimmer {
+  0% { background-position: -200px 0; }
+  100% { background-position: 200px 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kpi-skeleton { animation: none; }
+}
