@@ -168,7 +168,7 @@ export default function Dashboard({ dateFrom, dateTo, showTargets }) {
   const liveKpiDeltas = ready
     ? {
         "Total unique leads": `${liveLeadCount} leads + ${liveCallLogCount} call logs`,
-        ...(calendlyReady ? { "CE booked": "Live from Calendly" } : {}),
+        ...(calendlyReady ? { "CE booked": "Live from Calendly — Matching leads" } : {}),
       }
     : {};
   // Every month KPI is backed by live data, so while it is still loading we show
