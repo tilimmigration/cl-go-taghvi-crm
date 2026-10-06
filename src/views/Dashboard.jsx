@@ -1,6 +1,7 @@
 import { kpisFor, FUNNEL, CASE_TYPES, ALERTS, NAVY, ORANGE, WINE } from "../data.js";
 import { useLeads } from "../hooks/useLeads.js";
 import { useAttribution } from "../hooks/useAttribution.js";
+import { useCalendly } from "../hooks/useCalendly.js";
 import { aggregateDealStats } from "../lib/dealStats.js";
 import { buildChannelTable } from "../lib/attribution.js";
 import { isCeBookedLead } from "../lib/leads.js";
@@ -55,9 +56,25 @@ function createdInRange(record, from, to) {
   return true;
 }
 
+/**
+ * A Calendly booking within the dashboard's "Created" range, dated by
+ * ce_booked_at (the moment the booking was made — the Calendly analogue of a
+ * record's creation date), falling back to scheduled_at. A booking with no date
+ * is kept rather than dropped, mirroring createdInRange().
+ */
+function calendlyBookedInRange(row, from, to) {
+  const raw = row.ce_booked_at || row.scheduled_at;
+  if (!raw) return true;
+  const day = String(raw).slice(0, 10);
+  if (from && day < from) return false;
+  if (to && day > to) return false;
+  return true;
+}
+
 export default function Dashboard({ dateFrom, dateTo, showTargets }) {
   const liveLeads = useLeads();
   const attribution = useAttribution();
+  const calendly = useCalendly();
   const rangeLabel = dateFrom || dateTo ? `${dateFrom || "earliest"} → ${dateTo || "today"}` : "All time";
 
   // Everything on this dashboard is illustrative mock data (see data.js)
@@ -86,6 +103,17 @@ export default function Dashboard({ dateFrom, dateTo, showTargets }) {
   const leadsCeBookedCount = ready ? liveLeadRecords.filter(isCeBookedLead).length : null;
   const ceBookedCount = ready ? leadsCeBookedCount + dealStats.ceBooked : null;
 
+  // "CE booked" KPI tile, sourced LIVE FROM CALENDLY: the count of active
+  // Calendly bookings (status 'booked') whose booking date falls in the chosen
+  // "Created" range. Read from calendly_events (see useCalendly), so it reflects
+  // real Calendly activity and survives Monday re-syncs — unlike writing
+  // crm_leads.status, which the Monday import overwrites. The funnel below is
+  // left on the Monday lead/deal counts; only this tile switches to Calendly.
+  const calendlyReady = calendly.status === "ready";
+  const calendlyCeBooked = calendlyReady
+    ? calendly.rows.filter((r) => (r.status || "") === "booked" && calendlyBookedInRange(r, dateFrom, dateTo)).length
+    : null;
+
   // The "Call logs tracker" board (Monday 18414961803) is synced into
   // crm_calls — every crm_calls row comes from it — and already shows in the
   // Leads list (tagged "Call"). Per request, the "Total unique leads" KPI adds
@@ -98,7 +126,7 @@ export default function Dashboard({ dateFrom, dateTo, showTargets }) {
   const liveKpiValues = ready
     ? {
         "Total unique leads": String(totalLeadsWithCallLog),
-        "CE booked": String(ceBookedCount),
+        "CE booked": calendlyReady ? String(calendlyCeBooked) : String(ceBookedCount),
         // "Proposal Pending Acceptance" shows the Deals board's "Pending
         // Acceptance" group count.
         "Proposal Pending Acceptance": String(dealStats.proposalSent),
@@ -107,7 +135,12 @@ export default function Dashboard({ dateFrom, dateTo, showTargets }) {
       }
     : {};
   // Per-tile subtitle overrides; other live tiles keep the generic label.
-  const liveKpiDeltas = ready ? { "Total unique leads": `${liveLeadCount} leads + ${liveCallLogCount} call logs` } : {};
+  const liveKpiDeltas = ready
+    ? {
+        "Total unique leads": `${liveLeadCount} leads + ${liveCallLogCount} call logs`,
+        ...(calendlyReady ? { "CE booked": "Live from Calendly" } : {}),
+      }
+    : {};
   const kpis = kpisFor("month").map((k) =>
     liveKpiValues[k.label] !== undefined
       ? { ...k, value: liveKpiValues[k.label], delta: liveKpiDeltas[k.label] || "Live from Monday.com" }
