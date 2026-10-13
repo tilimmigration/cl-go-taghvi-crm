@@ -180,4 +180,19 @@ export function isCeBookedLead(lead) {
   return (lead.status || "").trim().toLowerCase() === CE_BOOKED_STATUS;
 }
 
+// A Call Leads record (crm_calls, the Monday "Call Log Tracker" board) counts
+// toward the Dashboard's "Total unique leads" KPI only when it is a QUALIFIED
+// lead. The team marks qualification on the Monday "Status" column (synced to
+// crm_calls.status); we also check the board group (monday_group_title) so it
+// still works if qualification is tracked as a group instead. Matched by exact
+// normalised label, so "Not qualified" / "Unqualified" / "Disqualified" are
+// deliberately NOT counted (a substring match would wrongly include them).
+const QUALIFIED_CALL_VALUES = new Set(["qualified leads", "qualified lead", "qualified"]);
+
+export function isQualifiedCall(call) {
+  const status = (call.status || "").trim().toLowerCase();
+  const group = (call.monday_group_title || "").trim().toLowerCase();
+  return QUALIFIED_CALL_VALUES.has(status) || QUALIFIED_CALL_VALUES.has(group);
+}
+
 export const SOURCE_TYPE_LABELS = { lead: "Lead", call: "Call", deal: "Deal" };

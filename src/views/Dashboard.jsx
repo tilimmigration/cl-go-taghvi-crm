@@ -4,7 +4,7 @@ import { useAttribution } from "../hooks/useAttribution.js";
 import { useCalendly } from "../hooks/useCalendly.js";
 import { aggregateDealStats } from "../lib/dealStats.js";
 import { buildChannelTable } from "../lib/attribution.js";
-import { isCeBookedLead } from "../lib/leads.js";
+import { isCeBookedLead, isQualifiedCall } from "../lib/leads.js";
 
 const card = { background: "var(--surface-raised)", borderRadius: "var(--radius-md)", boxShadow: "var(--shadow-sm)" };
 
@@ -144,18 +144,29 @@ export default function Dashboard({ dateFrom, dateTo, showTargets }) {
         ).size
       : null;
 
-  // The "Call logs tracker" board (Monday 18414961803) is synced into
-  // crm_calls — every crm_calls row comes from it — and already shows in the
-  // Leads list (tagged "Call"). Per request, the "Total unique leads" KPI adds
-  // the call-log count to the unique CRM leads. The funnel denominators below
-  // deliberately stay on leads-only, so lead→CE→signed conversion rates aren't
-  // diluted by call-log volume.
-  const liveCallLogCount = ready ? liveLeads.leads.filter((l) => l._sourceType === "call" && inRange(l)).length : null;
-  const totalLeadsWithCallLog = ready ? liveLeadCount + liveCallLogCount : null;
+  // "Total unique leads" KPI = three Monday boards combined, per the team's
+  // definition:
+  //   • Lead Tracker  (crm_leads  / _sourceType "lead") — ALL groups
+  //   • Deals         (crm_deals  / _sourceType "deal") — ALL groups
+  //   • Call Leads    (crm_calls  / _sourceType "call") — ONLY rows marked
+  //     "Qualified Leads" (isQualifiedCall), not every call log
+  // Each table is fed by exactly one Monday board (see 20260903000000_calls_and_
+  // deals.sql), so filtering by _sourceType is equivalent to selecting that
+  // board's rows. All three are scoped to the dashboard's Created date range.
+  // This is a straight SUM of the three boards, not cross-board de-duplication —
+  // the same person appearing as both a lead and a deal is counted in each,
+  // matching how the tile previously summed leads + call logs. The funnel
+  // denominators below deliberately stay leads-only, so lead→CE→signed rates
+  // aren't diluted by deal/call volume.
+  const liveDealCount = ready ? liveDeals.length : null;
+  const liveQualifiedCallCount = ready
+    ? liveLeads.leads.filter((l) => l._sourceType === "call" && inRange(l) && isQualifiedCall(l)).length
+    : null;
+  const totalUniqueLeads = ready ? liveLeadCount + liveDealCount + liveQualifiedCallCount : null;
 
   const liveKpiValues = ready
     ? {
-        "Total unique leads": String(totalLeadsWithCallLog),
+        "Total unique leads": String(totalUniqueLeads),
         "CE booked": calendlyReady ? String(calendlyCeBooked) : String(ceBookedCount),
         // "Proposal Pending Acceptance" shows the Deals board's "Pending
         // Acceptance" group count.
@@ -167,7 +178,7 @@ export default function Dashboard({ dateFrom, dateTo, showTargets }) {
   // Per-tile subtitle overrides; other live tiles keep the generic label.
   const liveKpiDeltas = ready
     ? {
-        "Total unique leads": `${liveLeadCount} leads + ${liveCallLogCount} call logs`,
+        "Total unique leads": `${liveLeadCount} leads · ${liveDealCount} deals · ${liveQualifiedCallCount} qual. calls`,
         ...(calendlyReady ? { "CE booked": "Live from Calendly — Matching leads" } : {}),
       }
     : {};
