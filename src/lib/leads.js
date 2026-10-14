@@ -168,16 +168,38 @@ export function leadDisplayName(lead) {
 
 const CE_BOOKED_STATUS = "case evaluation scheduled";
 
+const normLabel = (v) => (v == null ? "" : String(v).trim().toLowerCase());
+
 /**
- * True when a lead's Monday Status column reads "Case evaluation
- * scheduled" — the Leads-board source of truth for the Dashboard's "CE
- * booked" KPI. Not every scheduled case evaluation necessarily has a
- * matching crm_deals item yet, so this counts from the Leads board
- * directly rather than from the Deals board's group (see dealStats.js,
- * which covers the later funnel stages that ARE read from Deals groups).
+ * True when a lead is marked "Case Evaluation Scheduled" on the Leads board —
+ * the Leads-board source of truth for the Dashboard's "CE booked" KPI. (Not
+ * every scheduled case evaluation has a matching crm_deals item yet, so this
+ * counts from the Leads board directly; dealStats.js covers the later funnel
+ * stages that ARE read from Deals groups.)
+ *
+ * The label can live in more than one place depending on the board's column
+ * titles. The Monday sync only maps a column TITLED exactly "Status"/"Stage" to
+ * crm_leads.status/stage (see supabase/functions/_shared/monday/mapper.ts); a
+ * differently-titled status column lands in custom_fields ({ columnId: { title,
+ * type, text, value } }) instead. So we check the mapped status, the mapped
+ * stage, AND any status-type custom-field column — otherwise leads whose CE
+ * status sits in a non-"Status" column are missed (the board showed 17 while
+ * the tile counted only the 10 that happened to land in crm_leads.status).
+ * Matched by exact normalised label; custom fields are restricted to status-type
+ * columns so the phrase appearing inside a notes/free-text column doesn't count.
  */
 export function isCeBookedLead(lead) {
-  return (lead.status || "").trim().toLowerCase() === CE_BOOKED_STATUS;
+  if (!lead) return false;
+  if (normLabel(lead.status) === CE_BOOKED_STATUS || normLabel(lead.stage) === CE_BOOKED_STATUS) return true;
+  const customFields = lead.custom_fields;
+  if (customFields && typeof customFields === "object") {
+    for (const field of Object.values(customFields)) {
+      if (!field || typeof field !== "object") continue;
+      const type = String(field.type || "").toLowerCase();
+      if ((type === "status" || type === "color") && normLabel(field.text) === CE_BOOKED_STATUS) return true;
+    }
+  }
+  return false;
 }
 
 // A Call Leads record (crm_calls, the Monday "Call Log Tracker" board) counts
