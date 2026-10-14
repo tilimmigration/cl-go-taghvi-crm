@@ -15,7 +15,7 @@ const LIVE_KPI_LABELS = new Set([
   "CE booked",
   "Proposal Pending Acceptance",
   "Contracts signed",
-  "Revenue",
+  "Total Contract Value",
 ]);
 
 function pct(numerator, denominator) {
@@ -73,7 +73,7 @@ export default function Dashboard({ dateFrom, dateTo, showTargets }) {
 
   // Everything on this dashboard is illustrative mock data (see data.js)
   // except: the "Total unique leads" KPI tile, the CE booked/Proposal Pending
-  // Acceptance/Contracts signed/Revenue KPI tiles, and the funnel
+  // Acceptance/Contracts signed/Total Contract Value KPI tiles, and the funnel
   // conversion section — all swapped for real counts once Supabase has
   // responded. Case-type performance, channel performance and the alert
   // cards still need data (spend, per-case-type CE/sign tracking) we
@@ -139,7 +139,7 @@ export default function Dashboard({ dateFrom, dateTo, showTargets }) {
         // Acceptance" group count.
         "Proposal Pending Acceptance": String(dealStats.proposalSent),
         "Contracts signed": String(dealStats.contractSigned),
-        "Revenue": `$${dealStats.revenue.toLocaleString()}`,
+        "Total Contract Value": `$${dealStats.revenue.toLocaleString()}`,
       }
     : {};
   // Per-tile subtitle overrides; other live tiles keep the generic label.
