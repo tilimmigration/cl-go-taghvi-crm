@@ -134,6 +134,11 @@ function contractValueOf(deal) {
   return monthlyFee * term + upfrontFee;
 }
 
+/** The "Upfront Fee" of a deal — the due-upon-signing portion of Contract Value. */
+function upfrontFeeOf(deal) {
+  return numberFromField(fieldByTitle(deal.custom_fields, CONTRACT_VALUE_TITLES.upfrontFee));
+}
+
 /** Whether ANY of the Contract Value component columns is present on a deal. */
 function hasContractValueFields(deal) {
   return Object.values(CONTRACT_VALUE_TITLES).some((title) => fieldByTitle(deal.custom_fields, title) !== null);
@@ -143,8 +148,9 @@ function groupOf(deal) {
   return (deal.monday_group_title || "").trim().toLowerCase();
 }
 
-/** Per-deal extraction. Revenue is a deal's Contract Value, but only counts
- * toward the total once the deal is in the "Signed up" group. */
+/** Per-deal extraction. Revenue is a deal's full Contract Value and
+ * upfrontRevenue its Upfront Fee (the due-upon-signing portion); both only
+ * count toward the totals once the deal is in the "Signed up" group. */
 export function extractDealMetrics(deal) {
   const group = groupOf(deal);
   const contractSigned = group === STAGE_GROUPS.contractSigned;
@@ -154,6 +160,7 @@ export function extractDealMetrics(deal) {
     proposalSent: group === STAGE_GROUPS.proposalSent,
     contractSigned,
     revenue: contractSigned ? contractValueOf(deal) : 0,
+    upfrontRevenue: contractSigned ? upfrontFeeOf(deal) : 0,
     revenueFound: hasContractValueFields(deal),
   };
 }
@@ -168,7 +175,7 @@ export function extractDealMetrics(deal) {
  * Term / Upfront Fee), so the column titles likely changed.
  */
 export function aggregateDealStats(deals) {
-  const totals = { ceBooked: 0, ceCompleted: 0, proposalSent: 0, contractSigned: 0, revenue: 0 };
+  const totals = { ceBooked: 0, ceCompleted: 0, proposalSent: 0, contractSigned: 0, revenue: 0, upfrontRevenue: 0 };
   const seenGroups = new Set(deals.map(groupOf).filter(Boolean));
   let revenueFoundAny = false;
 
@@ -179,6 +186,7 @@ export function aggregateDealStats(deals) {
     if (m.proposalSent) totals.proposalSent++;
     if (m.contractSigned) totals.contractSigned++;
     totals.revenue += m.revenue;
+    totals.upfrontRevenue += m.upfrontRevenue;
     if (m.revenueFound) revenueFoundAny = true;
   }
 

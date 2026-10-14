@@ -66,6 +66,7 @@ export const KPI_SETS = {
     ["Proposal Pending Acceptance", "5", "−4%", -1],
     ["Contracts signed", "2", "Flat", 0],
     ["Total Contract Value", "$12,800", "+18%", 1],
+    ["Due-upon-signing Revenue", "$5,400", "+16%", 1],
   ],
   month: [
     ["Total unique leads", "84", "+18% vs last month", 1],
@@ -73,6 +74,7 @@ export const KPI_SETS = {
     ["Proposal Pending Acceptance", "19", "+12%", 1],
     ["Contracts signed", "6", "+20%", 1],
     ["Total Contract Value", "$47,400", "+22%", 1],
+    ["Due-upon-signing Revenue", "$19,800", "+20%", 1],
   ],
   quarter: [
     ["Total unique leads", "231", "+9% vs prior quarter", 1],
@@ -80,6 +82,7 @@ export const KPI_SETS = {
     ["Proposal Pending Acceptance", "57", "−3%", -1],
     ["Contracts signed", "18", "+13%", 1],
     ["Total Contract Value", "$142,600", "+15%", 1],
+    ["Due-upon-signing Revenue", "$58,200", "+11%", 1],
   ],
 };
 

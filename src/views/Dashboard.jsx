@@ -16,6 +16,7 @@ const LIVE_KPI_LABELS = new Set([
   "Proposal Pending Acceptance",
   "Contracts signed",
   "Total Contract Value",
+  "Due-upon-signing Revenue",
 ]);
 
 function pct(numerator, denominator) {
@@ -140,6 +141,9 @@ export default function Dashboard({ dateFrom, dateTo, showTargets }) {
         "Proposal Pending Acceptance": String(dealStats.proposalSent),
         "Contracts signed": String(dealStats.contractSigned),
         "Total Contract Value": `$${dealStats.revenue.toLocaleString()}`,
+        // "Due-upon-signing Revenue" = summed Upfront Fee of the Signed-up deals
+        // (the one-time portion of Contract Value due when the client signs).
+        "Due-upon-signing Revenue": `$${dealStats.upfrontRevenue.toLocaleString()}`,
       }
     : {};
   // Per-tile subtitle overrides; other live tiles keep the generic label.
@@ -147,6 +151,7 @@ export default function Dashboard({ dateFrom, dateTo, showTargets }) {
     ? {
         "Total unique leads": `${liveLeadCount} leads · ${liveDealCount} deals · ${liveQualifiedCallCount} qual. calls`,
         "CE booked": `${leadsCeBookedCount} leads · ${ceBookedDealsCount} deals`,
+        "Due-upon-signing Revenue": "Upfront fee · Signed up",
       }
     : {};
   // Every month KPI is backed by live data, so while it is still loading we show
@@ -192,7 +197,7 @@ export default function Dashboard({ dateFrom, dateTo, showTargets }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0,1fr))", gap: "var(--space-4)" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0,1fr))", gap: "var(--space-4)" }}>
         {kpis.map((k) => (
           <div key={k.label} style={{ ...card, padding: "var(--space-4)", display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
             <span style={{ fontSize: 12, fontWeight: 500, color: "var(--fg-3)", lineHeight: 1.35 }}>{k.label}</span>
