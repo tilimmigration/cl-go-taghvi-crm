@@ -61,6 +61,42 @@ const STAGE_GROUPS = {
   contractSigned: "signed up",
 };
 
+// The Dashboard's "CE booked" KPI tile counts every deal that has booked a case
+// evaluation — i.e. any deal sitting in the Deals board's CE/consultation
+// pipeline groups (the full set the team attached, Deals board, 2026-10-14).
+// A deal only reaches this board by booking a CE, but we match an EXPLICIT
+// allowlist of the pipeline groups (rather than "every deal") so that a future
+// non-pipeline group — e.g. a junk/archive bucket — can't silently inflate the
+// count. Titles are matched loosely (alphanumerics only, case-insensitive) so
+// spacing/punctuation drift on the board ("Follow Up" vs "Follow-Up", the
+// "(ST to review)" parens) doesn't drop a group.
+const normGroupKey = (v) => (v == null ? "" : String(v).toLowerCase().replace(/[^a-z0-9]/g, ""));
+
+/** The human-readable pipeline group titles counted as "CE booked" (for UI/debug). */
+export const CE_BOOKED_PIPELINE_GROUP_TITLES = [
+  "Case Evaluation Booked",
+  "Case Evaluation Missed",
+  "Case Evaluation Cancelled",
+  "Case Evaluation Follow Up Required",
+  "Consultation Required",
+  "Consultation Sent",
+  "Consultation Booked",
+  "Proposal (ST to review)",
+  "Pending Acceptance",
+  "Signed up",
+];
+
+const CE_BOOKED_PIPELINE_GROUPS = new Set(CE_BOOKED_PIPELINE_GROUP_TITLES.map(normGroupKey));
+
+/**
+ * True when a deal sits in one of the CE-booked pipeline groups above — the
+ * definition behind the Dashboard "CE booked" tile. Counts deals (board items),
+ * not subitems.
+ */
+export function isCeBookedDeal(deal) {
+  return CE_BOOKED_PIPELINE_GROUPS.has(normGroupKey(deal?.monday_group_title));
+}
+
 // "Contract Value" is a Monday FORMULA column that computes
 //   SUM({Monthly fee} × {Term}, {Upfront Fee})
 // (confirmed against the Deals board's column settings 2026-09-22:

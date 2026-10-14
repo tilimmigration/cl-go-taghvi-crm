@@ -9,11 +9,16 @@
 
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+// Vite injects `import.meta.env` (an object carrying every VITE_* var) into the
+// browser bundle. Guard it so this module can also be imported from Node — e.g.
+// the lib/*.test.js unit tests, which pull in leads.js → this file — where
+// `import.meta.env` is undefined and a direct property access would throw.
+const viteEnv = import.meta.env ?? {};
+const supabaseUrl = viteEnv.VITE_SUPABASE_URL;
 // Newer Supabase projects issue a "publishable" key; older ones an "anon"
 // key. Both play the same role (safe for the browser), so either name is
 // accepted.
-const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseKey = viteEnv.VITE_SUPABASE_PUBLISHABLE_KEY || viteEnv.VITE_SUPABASE_ANON_KEY;
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseKey);
 
