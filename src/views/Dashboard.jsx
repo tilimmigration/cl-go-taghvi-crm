@@ -1,8 +1,7 @@
 import { kpisFor, FUNNEL, CASE_TYPES, ALERTS, NAVY, ORANGE, WINE } from "../data.js";
 import { useLeads } from "../hooks/useLeads.js";
 import { useAttribution } from "../hooks/useAttribution.js";
-import { useCalendly } from "../hooks/useCalendly.js";
-import { aggregateDealStats } from "../lib/dealStats.js";
+import { aggregateDealStats, isCeBookedDeal } from "../lib/dealStats.js";
 import { buildChannelTable } from "../lib/attribution.js";
 import { isCeBookedLead, isQualifiedCall } from "../lib/leads.js";
 
@@ -67,25 +66,9 @@ function createdInRange(record, from, to) {
   return true;
 }
 
-/**
- * A Calendly booking within the dashboard's "Created" range, dated by
- * ce_booked_at (the moment the booking was made — the Calendly analogue of a
- * record's creation date), falling back to scheduled_at. A booking with no date
- * is kept rather than dropped, mirroring createdInRange().
- */
-function calendlyBookedInRange(row, from, to) {
-  const raw = row.ce_booked_at || row.scheduled_at;
-  if (!raw) return true;
-  const day = String(raw).slice(0, 10);
-  if (from && day < from) return false;
-  if (to && day > to) return false;
-  return true;
-}
-
 export default function Dashboard({ dateFrom, dateTo, showTargets }) {
   const liveLeads = useLeads();
   const attribution = useAttribution();
-  const calendly = useCalendly();
   const rangeLabel = dateFrom || dateTo ? `${dateFrom || "earliest"} → ${dateTo || "today"}` : "All time";
 
   // Everything on this dashboard is illustrative mock data (see data.js)
@@ -96,12 +79,10 @@ export default function Dashboard({ dateFrom, dateTo, showTargets }) {
   // cards still need data (spend, per-case-type CE/sign tracking) we
   // don't sync from Monday, so those stay illustrative.
   //
-  // CE booked sums two sources: crm_leads with status "Case evaluation
-  // scheduled" (Leads board) plus crm_deals currently in the "Case
-  // Evaluation Booked" group (Deals board) — the two boards aren't
-  // guaranteed to stay in lockstep, so both count. CE completed/
-  // proposals/signed/revenue come from the Deals board only — see
-  // lib/leads.js and lib/dealStats.js.
+  // The "CE booked" KPI tile counts deals in the Deals board's CE/consultation
+  // pipeline groups (isCeBookedDeal) — see below. CE completed/proposals/signed/
+  // revenue come from the Deals board only — see lib/dealStats.js. (The funnel
+  // section keeps its own leads+deals CE-booked basis; only the tile changed.)
   const ready = liveLeads.status === "ready";
   // The date filter applies to the live KPI tiles and the funnel: a record
   // counts only if it was created within the chosen range. (The case-type,
@@ -111,38 +92,20 @@ export default function Dashboard({ dateFrom, dateTo, showTargets }) {
   const liveLeadCount = ready ? liveLeadRecords.length : null;
   const liveDeals = ready ? liveLeads.leads.filter((l) => l._sourceType === "deal" && inRange(l)) : [];
   const dealStats = ready ? aggregateDealStats(liveDeals) : null;
+  // Funnel basis (unchanged): crm_leads with status "Case evaluation scheduled"
+  // plus crm_deals currently in the single "Case Evaluation Booked" group.
   const leadsCeBookedCount = ready ? liveLeadRecords.filter(isCeBookedLead).length : null;
   const ceBookedCount = ready ? leadsCeBookedCount + dealStats.ceBooked : null;
 
-  // "CE booked" KPI tile, sourced LIVE FROM CALENDLY but SCOPED TO LEADS: the
-  // number of our CRM leads (crm_leads) who have an active Calendly booking
-  // (status 'booked') whose booking date falls in the chosen "Created" range.
-  // Matched by email — invitee_email == a crm_leads email (normalised). This is
-  // the "matching with leads" count the team asked for, NOT every Calendly
-  // booking: most Calendly invitees are historical Deals-board clients with no
-  // Leads-board row, and counting those overstated the tile. Counted as DISTINCT
-  // matching emails, so a lead who rebooked isn't double-counted. Read from
-  // calendly_events (see useCalendly), so it survives Monday re-syncs — unlike
-  // writing crm_leads.status, which the Monday import overwrites. The funnel
-  // below stays on the Monday lead/deal counts; only this tile uses Calendly.
-  const calendlyReady = calendly.status === "ready";
-  const normEmail = (v) => (v == null ? "" : String(v).trim().toLowerCase());
-  const leadEmailSet = ready
-    ? new Set(liveLeads.leads.filter((l) => l._sourceType === "lead" && l.email).map((l) => normEmail(l.email)).filter(Boolean))
-    : new Set();
-  const calendlyCeBooked =
-    calendlyReady && ready
-      ? new Set(
-          calendly.rows
-            .filter(
-              (r) =>
-                (r.status || "") === "booked" &&
-                calendlyBookedInRange(r, dateFrom, dateTo) &&
-                leadEmailSet.has(normEmail(r.invitee_email)),
-            )
-            .map((r) => normEmail(r.invitee_email)),
-        ).size
-      : null;
+  // "CE booked" KPI tile = deals that have BOOKED a case evaluation, i.e. every
+  // deal sitting in the Deals board's CE/consultation pipeline groups
+  // (isCeBookedDeal — Case Evaluation Booked/Missed/Cancelled/Follow Up Required,
+  // Consultation Required/Sent/Booked, Proposal (ST to review), Pending
+  // Acceptance, Signed up). Per the team's definition this is the whole attached
+  // pipeline, since a deal only reaches this board by booking a CE. Scoped to the
+  // dashboard's Created date range like the other live tiles. (Only this tile
+  // uses the pipeline-groups count; the funnel above keeps its own basis.)
+  const ceBookedDealsCount = ready ? liveDeals.filter(isCeBookedDeal).length : null;
 
   // "Total unique leads" KPI = three Monday boards combined, per the team's
   // definition:
@@ -167,7 +130,7 @@ export default function Dashboard({ dateFrom, dateTo, showTargets }) {
   const liveKpiValues = ready
     ? {
         "Total unique leads": String(totalUniqueLeads),
-        "CE booked": calendlyReady ? String(calendlyCeBooked) : String(ceBookedCount),
+        "CE booked": String(ceBookedDealsCount),
         // "Proposal Pending Acceptance" shows the Deals board's "Pending
         // Acceptance" group count.
         "Proposal Pending Acceptance": String(dealStats.proposalSent),
@@ -179,21 +142,17 @@ export default function Dashboard({ dateFrom, dateTo, showTargets }) {
   const liveKpiDeltas = ready
     ? {
         "Total unique leads": `${liveLeadCount} leads · ${liveDealCount} deals · ${liveQualifiedCallCount} qual. calls`,
-        ...(calendlyReady ? { "CE booked": "Live from Calendly — Matching leads" } : {}),
+        "CE booked": "Live from Deals — pipeline groups",
       }
     : {};
   // Every month KPI is backed by live data, so while it is still loading we show
   // a skeleton rather than the mock number (which would otherwise flash and then
-  // change under the user). "CE booked" additionally waits on Calendly; if
-  // Calendly errors or isn't configured it falls back to the Monday count rather
-  // than spinning forever. When Supabase itself isn't connected (not_configured /
+  // change under the user). When Supabase itself isn't connected (not_configured /
   // error / not_authorized, i.e. not "loading"), we keep the illustrative mock
   // numbers instead of a perpetual loader — the demo fallback, unchanged.
   const kpis = kpisFor("month").map((k) => {
     if (!LIVE_KPI_LABELS.has(k.label)) return k;
-    const stillLoading =
-      liveLeads.status === "loading" || (k.label === "CE booked" && ready && calendly.status === "loading");
-    if (stillLoading) return { ...k, loading: true };
+    if (liveLeads.status === "loading") return { ...k, loading: true };
     if (!ready) return k;
     return { ...k, value: liveKpiValues[k.label] ?? k.value, delta: liveKpiDeltas[k.label] || "Live from Monday.com" };
   });
