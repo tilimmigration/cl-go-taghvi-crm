@@ -33,3 +33,32 @@ if (!isSupabaseConfigured) {
 }
 
 export const supabase = isSupabaseConfigured ? createClient(supabaseUrl, supabaseKey) : null;
+
+/** True for the PostgREST/GoTrue "access token expired" error. */
+export function isAuthExpiredError(error) {
+  if (!error) return false;
+  const code = error.code || "";
+  const msg = (error.message || "").toLowerCase();
+  // PostgREST returns code PGRST301 for an expired JWT; some paths only carry
+  // the message text. Match both so a lapsed access token can be retried.
+  return code === "PGRST301" || msg.includes("jwt expired") || (msg.includes("token") && msg.includes("expired"));
+}
+
+/**
+ * Runs a Supabase query thunk and, if it fails because the access token has
+ * expired (common after the browser tab or computer has slept while the app was
+ * left open), refreshes the session once and retries. If the refresh itself
+ * fails — the session is truly gone — supabase-js emits SIGNED_OUT and the app
+ * returns to the login screen; the original expired result is returned so the
+ * caller still surfaces an error state rather than a silent partial load.
+ *
+ * `run` MUST build a fresh query each call (a PostgREST builder can only be
+ * awaited once), e.g. withSessionRetry(() => supabase.from("t").select("*")).
+ */
+export async function withSessionRetry(run) {
+  const result = await run();
+  if (!supabase || !isAuthExpiredError(result?.error)) return result;
+  const { error: refreshError } = await supabase.auth.refreshSession();
+  if (refreshError) return result;
+  return run();
+}

@@ -8,7 +8,7 @@
 // their own Monday identity, but the Leads page is where the team wants
 // to see all of them.
 
-import { supabase, isSupabaseConfigured } from "./supabaseClient.js";
+import { supabase, isSupabaseConfigured, withSessionRetry } from "./supabaseClient.js";
 
 const LEAD_COLUMNS = [
   "id",
@@ -67,11 +67,9 @@ async function isAllowlisted() {
   const { data: userData } = await supabase.auth.getUser();
   const email = userData?.user?.email?.toLowerCase();
   if (!email) return false;
-  const { data, error } = await supabase
-    .from("crm_allowed_users")
-    .select("email")
-    .eq("email", email)
-    .maybeSingle();
+  const { data, error } = await withSessionRetry(() =>
+    supabase.from("crm_allowed_users").select("email").eq("email", email).maybeSingle(),
+  );
   return !error && Boolean(data);
 }
 
@@ -88,13 +86,15 @@ const FETCH_PAGE_SIZE = 1000;
 async function fetchTable(table, columns) {
   const rows = [];
   for (let from = 0; ; from += FETCH_PAGE_SIZE) {
-    const { data, error } = await supabase
-      .from(table)
-      .select(columns)
-      .eq("is_deleted", false)
-      .order("created_at", { ascending: false })
-      .order("id", { ascending: false })
-      .range(from, from + FETCH_PAGE_SIZE - 1);
+    const { data, error } = await withSessionRetry(() =>
+      supabase
+        .from(table)
+        .select(columns)
+        .eq("is_deleted", false)
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .range(from, from + FETCH_PAGE_SIZE - 1),
+    );
     if (error) return { data: rows, error };
     if (data?.length) rows.push(...data);
     if (!data || data.length < FETCH_PAGE_SIZE) break;

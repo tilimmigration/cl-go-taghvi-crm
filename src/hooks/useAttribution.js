@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase, isSupabaseConfigured } from "../lib/supabaseClient.js";
+import { supabase, isSupabaseConfigured, withSessionRetry } from "../lib/supabaseClient.js";
 
 // Reads matched WhatConverts attribution rows from public.lead_attribution for
 // the Dashboard's Channel Performance table. Only matched rows (with a
@@ -14,15 +14,17 @@ async function fetchAttribution() {
   if (!isSupabaseConfigured || !supabase) return { rows: [], configured: false, error: null };
   const rows = [];
   for (let from = 0; ; from += PAGE_SIZE) {
-    const { data, error } = await supabase
-      .from("lead_attribution")
-      .select(ATTR_COLUMNS)
-      .eq("match_status", "matched")
-      .not("monday_item_id", "is", null)
-      .order("monday_item_id", { ascending: true })
-      .order("attribution_created_at", { ascending: true })
-      .order("whatconverts_lead_id", { ascending: true })
-      .range(from, from + PAGE_SIZE - 1);
+    const { data, error } = await withSessionRetry(() =>
+      supabase
+        .from("lead_attribution")
+        .select(ATTR_COLUMNS)
+        .eq("match_status", "matched")
+        .not("monday_item_id", "is", null)
+        .order("monday_item_id", { ascending: true })
+        .order("attribution_created_at", { ascending: true })
+        .order("whatconverts_lead_id", { ascending: true })
+        .range(from, from + PAGE_SIZE - 1),
+    );
     if (error) return { rows, configured: true, error: error.message };
     if (data?.length) rows.push(...data);
     if (!data || data.length < PAGE_SIZE) break;
