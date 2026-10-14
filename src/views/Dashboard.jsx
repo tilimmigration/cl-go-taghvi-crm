@@ -140,10 +140,11 @@ export default function Dashboard({ dateFrom, dateTo, showTargets }) {
         // Acceptance" group count.
         "Proposal Pending Acceptance": String(dealStats.proposalSent),
         "Contracts signed": String(dealStats.contractSigned),
-        "Total Contract Value": `$${dealStats.revenue.toLocaleString()}`,
+        // Whole dollars only — drop any fractional part (1,569,980.086 → 1,569,980).
+        "Total Contract Value": `$${Math.trunc(dealStats.revenue).toLocaleString()}`,
         // "Due-upon-signing Revenue" = summed Upfront Fee of the Signed-up deals
         // (the one-time portion of Contract Value due when the client signs).
-        "Due-upon-signing Revenue": `$${dealStats.upfrontRevenue.toLocaleString()}`,
+        "Due-upon-signing Revenue": `$${Math.trunc(dealStats.upfrontRevenue).toLocaleString()}`,
       }
     : {};
   // Per-tile subtitle overrides; other live tiles keep the generic label.
