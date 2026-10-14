@@ -182,17 +182,36 @@ export function isCeBookedLead(lead) {
 
 // A Call Leads record (crm_calls, the Monday "Call Log Tracker" board) counts
 // toward the Dashboard's "Total unique leads" KPI only when it is a QUALIFIED
-// lead. The team marks qualification on the Monday "Status" column (synced to
-// crm_calls.status); we also check the board group (monday_group_title) so it
-// still works if qualification is tracked as a group instead. Matched by exact
-// normalised label, so "Not qualified" / "Unqualified" / "Disqualified" are
-// deliberately NOT counted (a substring match would wrongly include them).
-const QUALIFIED_CALL_VALUES = new Set(["qualified leads", "qualified lead", "qualified"]);
+// lead — the team marks these "Qualified Leads" on the board.
+//
+// Where that label lives depends on the board's column titles. The Monday sync
+// only maps a column TITLED exactly "Status" to crm_calls.status (see
+// supabase/functions/_shared/monday/mapper.ts); the Call Log Tracker tracks
+// qualification on a DIFFERENTLY-titled status column, so the value lands in
+// custom_fields ({ columnId: { title, type, text, value } }) instead — which is
+// why checking crm_calls.status alone returned 0. So we look in all three
+// places: the canonical status column, the board group, and any status-type
+// custom-field column. ("Action Needed" is the board group these sit in.)
+//
+// A label counts when it starts with "qualified" (so "Qualified", "Qualified
+// Lead", "Qualified Leads" all match); "Not qualified" / "Unqualified" /
+// "Disqualified" do NOT start with "qualified", so they're correctly excluded.
+const isQualifiedLabel = (v) => (v == null ? "" : String(v).trim().toLowerCase()).startsWith("qualified");
 
 export function isQualifiedCall(call) {
-  const status = (call.status || "").trim().toLowerCase();
-  const group = (call.monday_group_title || "").trim().toLowerCase();
-  return QUALIFIED_CALL_VALUES.has(status) || QUALIFIED_CALL_VALUES.has(group);
+  if (!call) return false;
+  if (isQualifiedLabel(call.status) || isQualifiedLabel(call.monday_group_title)) return true;
+  const customFields = call.custom_fields;
+  if (customFields && typeof customFields === "object") {
+    for (const field of Object.values(customFields)) {
+      if (!field || typeof field !== "object") continue;
+      // Only status-type columns (Monday "status"; legacy "color") carry a
+      // qualification label — skip free-text columns to avoid false positives.
+      const type = String(field.type || "").toLowerCase();
+      if ((type === "status" || type === "color") && isQualifiedLabel(field.text)) return true;
+    }
+  }
+  return false;
 }
 
 export const SOURCE_TYPE_LABELS = { lead: "Lead", call: "Call", deal: "Deal" };
