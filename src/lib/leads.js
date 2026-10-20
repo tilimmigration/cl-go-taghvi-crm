@@ -14,6 +14,8 @@ const LEAD_COLUMNS = [
   "id",
   "monday_board_id",
   "monday_item_id",
+  "monday_group_id",
+  "monday_group_title",
   "name",
   "first_name",
   "last_name",
@@ -166,40 +168,24 @@ export function leadDisplayName(lead) {
   return fromParts || lead.name || "(unnamed lead)";
 }
 
-const CE_BOOKED_STATUS = "case evaluation scheduled";
-
 const normLabel = (v) => (v == null ? "" : String(v).trim().toLowerCase());
 
-/**
- * True when a lead is marked "Case Evaluation Scheduled" on the Leads board —
- * the Leads-board source of truth for the Dashboard's "CE booked" KPI. (Not
- * every scheduled case evaluation has a matching crm_deals item yet, so this
- * counts from the Leads board directly; dealStats.js covers the later funnel
- * stages that ARE read from Deals groups.)
- *
- * The label can live in more than one place depending on the board's column
- * titles. The Monday sync only maps a column TITLED exactly "Status"/"Stage" to
- * crm_leads.status/stage (see supabase/functions/_shared/monday/mapper.ts); a
- * differently-titled status column lands in custom_fields ({ columnId: { title,
- * type, text, value } }) instead. So we check the mapped status, the mapped
- * stage, AND any status-type custom-field column — otherwise leads whose CE
- * status sits in a non-"Status" column are missed (the board showed 17 while
- * the tile counted only the 10 that happened to land in crm_leads.status).
- * Matched by exact normalised label; custom fields are restricted to status-type
- * columns so the phrase appearing inside a notes/free-text column doesn't count.
- */
+// A lead counts as "CE booked" when it sits in the Lead Tracker's
+// "Case Evaluation Scheduled" board GROUP (the Kanban section the team drags a
+// lead into once a case evaluation is scheduled) — the Leads-board source of
+// truth for the Dashboard's "CE booked" KPI. (dealStats.js covers the later
+// funnel stages read from the Deals board's groups.)
+//
+// Counted by GROUP membership, regardless of the lead's Status value: once a
+// lead is in that group the Status column may read "Case Evaluation Scheduled",
+// "Booked", or anything else, and all of them count. The Status column is NOT a
+// reliable proxy here — only a few of the group's leads carry the matching
+// status, and some leads with that status sit in other groups entirely — so we
+// match on the board group the Monday sync stores as crm_leads.monday_group_title.
+const CE_BOOKED_GROUP = "case evaluation scheduled";
+
 export function isCeBookedLead(lead) {
-  if (!lead) return false;
-  if (normLabel(lead.status) === CE_BOOKED_STATUS || normLabel(lead.stage) === CE_BOOKED_STATUS) return true;
-  const customFields = lead.custom_fields;
-  if (customFields && typeof customFields === "object") {
-    for (const field of Object.values(customFields)) {
-      if (!field || typeof field !== "object") continue;
-      const type = String(field.type || "").toLowerCase();
-      if ((type === "status" || type === "color") && normLabel(field.text) === CE_BOOKED_STATUS) return true;
-    }
-  }
-  return false;
+  return normLabel(lead?.monday_group_title) === CE_BOOKED_GROUP;
 }
 
 // A Call Leads record (crm_calls, the Monday "Call Log Tracker" board) counts

@@ -42,29 +42,19 @@ test("isQualifiedCall: NOT qualified for negated / unrelated / non-status-column
   assert.equal(isQualifiedCall(null), false);
 });
 
-test("isCeBookedLead: matches CE Scheduled in status, stage, or a status-type custom field", () => {
-  assert.equal(isCeBookedLead({ status: "Case evaluation scheduled" }), true);
-  assert.equal(isCeBookedLead({ status: "  case evaluation scheduled " }), true);
-  // Some leads track the lifecycle in the Stage column.
-  assert.equal(isCeBookedLead({ status: "New", stage: "Case Evaluation Scheduled" }), true);
-  // Differently-titled status column → the sync lands it in custom_fields.
-  assert.equal(
-    isCeBookedLead({
-      status: null,
-      custom_fields: { color_x: { title: "Lead Status", type: "status", text: "Case Evaluation Scheduled" } },
-    }),
-    true,
-  );
+test("isCeBookedLead: matches the 'Case Evaluation Scheduled' board group, any status", () => {
+  assert.equal(isCeBookedLead({ monday_group_title: "Case Evaluation Scheduled", status: "Case evaluation scheduled" }), true);
+  assert.equal(isCeBookedLead({ monday_group_title: "Case Evaluation Scheduled", status: "Booked" }), true);
+  assert.equal(isCeBookedLead({ monday_group_title: "Case Evaluation Scheduled", status: null }), true);
+  // Case/space-insensitive on the group title.
+  assert.equal(isCeBookedLead({ monday_group_title: "  case evaluation scheduled " }), true);
 });
 
-test("isCeBookedLead: excludes other statuses and non-status-column text", () => {
-  assert.equal(isCeBookedLead({ status: "Booked" }), false);
-  assert.equal(isCeBookedLead({ status: null }), false);
+test("isCeBookedLead: excludes other groups, even when the status matches", () => {
+  // Status says CE scheduled but the lead is filed under another group → not counted.
+  assert.equal(isCeBookedLead({ monday_group_title: "Lead Source - Visa Status Intake", status: "Case Evaluation Scheduled" }), false);
+  assert.equal(isCeBookedLead({ monday_group_title: "Temporary Group (Needs Sorting)" }), false);
+  assert.equal(isCeBookedLead({ monday_group_title: null, status: "Case Evaluation Scheduled" }), false);
   assert.equal(isCeBookedLead({}), false);
   assert.equal(isCeBookedLead(null), false);
-  // The phrase inside a free-text column must NOT count (type guard).
-  assert.equal(
-    isCeBookedLead({ custom_fields: { notes: { title: "Notes", type: "text", text: "Case Evaluation Scheduled" } } }),
-    false,
-  );
 });
