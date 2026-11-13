@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase, isSupabaseConfigured } from "../lib/supabaseClient.js";
+import { supabase, isSupabaseConfigured, withSessionRetry } from "../lib/supabaseClient.js";
 
 // Reads Calendly bookings from public.calendly_events for the Dashboard's
 // "CE booked" tile (shown as "Live from Calendly"). RLS restricts this to
@@ -17,11 +17,9 @@ async function fetchCalendly() {
   if (!isSupabaseConfigured || !supabase) return { rows: [], configured: false, error: null };
   const rows = [];
   for (let from = 0; ; from += PAGE_SIZE) {
-    const { data, error } = await supabase
-      .from("calendly_events")
-      .select(CAL_COLUMNS)
-      .order("id", { ascending: true })
-      .range(from, from + PAGE_SIZE - 1);
+    const { data, error } = await withSessionRetry(() =>
+      supabase.from("calendly_events").select(CAL_COLUMNS).order("id", { ascending: true }).range(from, from + PAGE_SIZE - 1),
+    );
     if (error) return { rows, configured: true, error: error.message };
     if (data?.length) rows.push(...data);
     if (!data || data.length < PAGE_SIZE) break;

@@ -15,7 +15,8 @@ const LIVE_KPI_LABELS = new Set([
   "CE booked",
   "Proposal Pending Acceptance",
   "Contracts signed",
-  "Revenue",
+  "Total Contract Value",
+  "Due-upon-signing Revenue",
 ]);
 
 function pct(numerator, denominator) {
@@ -73,16 +74,17 @@ export default function Dashboard({ dateFrom, dateTo, showTargets }) {
 
   // Everything on this dashboard is illustrative mock data (see data.js)
   // except: the "Total unique leads" KPI tile, the CE booked/Proposal Pending
-  // Acceptance/Contracts signed/Revenue KPI tiles, and the funnel
+  // Acceptance/Contracts signed/Total Contract Value KPI tiles, and the funnel
   // conversion section — all swapped for real counts once Supabase has
   // responded. Case-type performance, channel performance and the alert
   // cards still need data (spend, per-case-type CE/sign tracking) we
   // don't sync from Monday, so those stay illustrative.
   //
-  // The "CE booked" KPI tile counts deals in the Deals board's CE/consultation
-  // pipeline groups (isCeBookedDeal) — see below. CE completed/proposals/signed/
-  // revenue come from the Deals board only — see lib/dealStats.js. (The funnel
-  // section keeps its own leads+deals CE-booked basis; only the tile changed.)
+  // The "CE booked" KPI tile sums the Leads Tracker ("Case Evaluation Scheduled"
+  // leads) and the Deals board's CE/consultation pipeline groups (isCeBookedDeal)
+  // — see below. CE completed/proposals/signed/revenue come from the Deals board
+  // only — see lib/dealStats.js. (The funnel section keeps its own leads+deals
+  // CE-booked basis; only the tile changed.)
   const ready = liveLeads.status === "ready";
   // The date filter applies to the live KPI tiles and the funnel: a record
   // counts only if it was created within the chosen range. (The case-type,
@@ -97,15 +99,18 @@ export default function Dashboard({ dateFrom, dateTo, showTargets }) {
   const leadsCeBookedCount = ready ? liveLeadRecords.filter(isCeBookedLead).length : null;
   const ceBookedCount = ready ? leadsCeBookedCount + dealStats.ceBooked : null;
 
-  // "CE booked" KPI tile = deals that have BOOKED a case evaluation, i.e. every
-  // deal sitting in the Deals board's CE/consultation pipeline groups
-  // (isCeBookedDeal — Case Evaluation Booked/Missed/Cancelled/Follow Up Required,
-  // Consultation Required/Sent/Booked, Proposal (ST to review), Pending
-  // Acceptance, Signed up). Per the team's definition this is the whole attached
-  // pipeline, since a deal only reaches this board by booking a CE. Scoped to the
-  // dashboard's Created date range like the other live tiles. (Only this tile
-  // uses the pipeline-groups count; the funnel above keeps its own basis.)
+  // "CE booked" KPI tile = Leads Tracker + Deals, per the team's definition:
+  //   • Leads Tracker (crm_leads) — leads whose Status is "Case Evaluation
+  //     Scheduled" (leadsCeBookedCount above, via isCeBookedLead)
+  //   • Deals (crm_deals) — every deal sitting in the CE/consultation pipeline
+  //     groups (isCeBookedDeal — Case Evaluation Booked/Missed/Cancelled/Follow
+  //     Up Required, Consultation Required/Sent/Booked, Proposal (ST to review),
+  //     Pending Acceptance, Signed up); a deal only reaches this board by booking
+  //     a CE, so the whole attached pipeline counts.
+  // Straight SUM of the two boards (no cross-board de-dup), both scoped to the
+  // dashboard's Created date range. (The funnel above keeps its own basis.)
   const ceBookedDealsCount = ready ? liveDeals.filter(isCeBookedDeal).length : null;
+  const ceBookedTileCount = ready ? leadsCeBookedCount + ceBookedDealsCount : null;
 
   // "Total unique leads" KPI = three Monday boards combined, per the team's
   // definition:
@@ -130,19 +135,24 @@ export default function Dashboard({ dateFrom, dateTo, showTargets }) {
   const liveKpiValues = ready
     ? {
         "Total unique leads": String(totalUniqueLeads),
-        "CE booked": String(ceBookedDealsCount),
+        "CE booked": String(ceBookedTileCount),
         // "Proposal Pending Acceptance" shows the Deals board's "Pending
         // Acceptance" group count.
         "Proposal Pending Acceptance": String(dealStats.proposalSent),
         "Contracts signed": String(dealStats.contractSigned),
-        "Revenue": `$${dealStats.revenue.toLocaleString()}`,
+        // Whole dollars only — drop any fractional part (1,569,980.086 → 1,569,980).
+        "Total Contract Value": `$${Math.trunc(dealStats.revenue).toLocaleString()}`,
+        // "Due-upon-signing Revenue" = summed Upfront Fee of the Signed-up deals
+        // (the one-time portion of Contract Value due when the client signs).
+        "Due-upon-signing Revenue": `$${Math.trunc(dealStats.upfrontRevenue).toLocaleString()}`,
       }
     : {};
   // Per-tile subtitle overrides; other live tiles keep the generic label.
   const liveKpiDeltas = ready
     ? {
         "Total unique leads": `${liveLeadCount} leads · ${liveDealCount} deals · ${liveQualifiedCallCount} qual. calls`,
-        "CE booked": "Live from Deals — pipeline groups",
+        "CE booked": `${leadsCeBookedCount} leads · ${ceBookedDealsCount} deals`,
+        "Due-upon-signing Revenue": "Upfront fee · Signed up",
       }
     : {};
   // Every month KPI is backed by live data, so while it is still loading we show
@@ -188,7 +198,7 @@ export default function Dashboard({ dateFrom, dateTo, showTargets }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0,1fr))", gap: "var(--space-4)" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0,1fr))", gap: "var(--space-4)" }}>
         {kpis.map((k) => (
           <div key={k.label} style={{ ...card, padding: "var(--space-4)", display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
             <span style={{ fontSize: 12, fontWeight: 500, color: "var(--fg-3)", lineHeight: 1.35 }}>{k.label}</span>

@@ -4,7 +4,7 @@
 // decision, gated by RLS. It never writes to crm_leads and never touches
 // Monday — a decision is a separate, reversible record the dashboard reflects.
 
-import { supabase, isSupabaseConfigured } from "./supabaseClient.js";
+import { supabase, isSupabaseConfigured, withSessionRetry } from "./supabaseClient.js";
 
 const COLUMNS =
   "pair_key, survivor_monday_item_id, duplicate_monday_item_id, survivor_lead_id, duplicate_lead_id, match_basis, verdict, decision, decided_by, decided_at";
@@ -12,7 +12,9 @@ const COLUMNS =
 /** All recorded decisions (shared across the allowlisted team). */
 export async function fetchDecisions() {
   if (!isSupabaseConfigured || !supabase) return { rows: [], configured: false, error: null };
-  const { data, error } = await supabase.from("lead_dedup_decisions").select(COLUMNS).order("decided_at", { ascending: false });
+  const { data, error } = await withSessionRetry(() =>
+    supabase.from("lead_dedup_decisions").select(COLUMNS).order("decided_at", { ascending: false }),
+  );
   if (error) return { rows: [], configured: true, error: error.message };
   return { rows: data || [], configured: true, error: null };
 }
@@ -38,13 +40,15 @@ export async function saveDecision(candidate, decision) {
     decided_by: email,
     decided_at: new Date().toISOString(),
   };
-  const { data, error } = await supabase.from("lead_dedup_decisions").upsert(row, { onConflict: "pair_key" }).select(COLUMNS).single();
+  const { data, error } = await withSessionRetry(() =>
+    supabase.from("lead_dedup_decisions").upsert(row, { onConflict: "pair_key" }).select(COLUMNS).single(),
+  );
   return { row: data ?? null, error: error?.message ?? null };
 }
 
 /** Removes a decision (undo) — the pair returns to the active queue. */
 export async function clearDecision(pairKey) {
   if (!isSupabaseConfigured || !supabase) return { error: "not configured" };
-  const { error } = await supabase.from("lead_dedup_decisions").delete().eq("pair_key", pairKey);
+  const { error } = await withSessionRetry(() => supabase.from("lead_dedup_decisions").delete().eq("pair_key", pairKey));
   return { error: error?.message ?? null };
 }

@@ -42,9 +42,19 @@ test("isQualifiedCall: NOT qualified for negated / unrelated / non-status-column
   assert.equal(isQualifiedCall(null), false);
 });
 
-test("isCeBookedLead: matches the CE scheduled status only", () => {
-  assert.equal(isCeBookedLead({ status: "Case evaluation scheduled" }), true);
-  assert.equal(isCeBookedLead({ status: "  case evaluation scheduled " }), true);
-  assert.equal(isCeBookedLead({ status: "Booked" }), false);
-  assert.equal(isCeBookedLead({ status: null }), false);
+test("isCeBookedLead: matches the 'Case Evaluation Scheduled' board group, any status", () => {
+  assert.equal(isCeBookedLead({ monday_group_title: "Case Evaluation Scheduled", status: "Case evaluation scheduled" }), true);
+  assert.equal(isCeBookedLead({ monday_group_title: "Case Evaluation Scheduled", status: "Booked" }), true);
+  assert.equal(isCeBookedLead({ monday_group_title: "Case Evaluation Scheduled", status: null }), true);
+  // Case/space-insensitive on the group title.
+  assert.equal(isCeBookedLead({ monday_group_title: "  case evaluation scheduled " }), true);
+});
+
+test("isCeBookedLead: excludes other groups, even when the status matches", () => {
+  // Status says CE scheduled but the lead is filed under another group → not counted.
+  assert.equal(isCeBookedLead({ monday_group_title: "Lead Source - Visa Status Intake", status: "Case Evaluation Scheduled" }), false);
+  assert.equal(isCeBookedLead({ monday_group_title: "Temporary Group (Needs Sorting)" }), false);
+  assert.equal(isCeBookedLead({ monday_group_title: null, status: "Case Evaluation Scheduled" }), false);
+  assert.equal(isCeBookedLead({}), false);
+  assert.equal(isCeBookedLead(null), false);
 });

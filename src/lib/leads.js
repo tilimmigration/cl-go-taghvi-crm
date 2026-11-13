@@ -8,12 +8,14 @@
 // their own Monday identity, but the Leads page is where the team wants
 // to see all of them.
 
-import { supabase, isSupabaseConfigured } from "./supabaseClient.js";
+import { supabase, isSupabaseConfigured, withSessionRetry } from "./supabaseClient.js";
 
 const LEAD_COLUMNS = [
   "id",
   "monday_board_id",
   "monday_item_id",
+  "monday_group_id",
+  "monday_group_title",
   "name",
   "first_name",
   "last_name",
@@ -67,11 +69,9 @@ async function isAllowlisted() {
   const { data: userData } = await supabase.auth.getUser();
   const email = userData?.user?.email?.toLowerCase();
   if (!email) return false;
-  const { data, error } = await supabase
-    .from("crm_allowed_users")
-    .select("email")
-    .eq("email", email)
-    .maybeSingle();
+  const { data, error } = await withSessionRetry(() =>
+    supabase.from("crm_allowed_users").select("email").eq("email", email).maybeSingle(),
+  );
   return !error && Boolean(data);
 }
 
@@ -88,13 +88,15 @@ const FETCH_PAGE_SIZE = 1000;
 async function fetchTable(table, columns) {
   const rows = [];
   for (let from = 0; ; from += FETCH_PAGE_SIZE) {
-    const { data, error } = await supabase
-      .from(table)
-      .select(columns)
-      .eq("is_deleted", false)
-      .order("created_at", { ascending: false })
-      .order("id", { ascending: false })
-      .range(from, from + FETCH_PAGE_SIZE - 1);
+    const { data, error } = await withSessionRetry(() =>
+      supabase
+        .from(table)
+        .select(columns)
+        .eq("is_deleted", false)
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .range(from, from + FETCH_PAGE_SIZE - 1),
+    );
     if (error) return { data: rows, error };
     if (data?.length) rows.push(...data);
     if (!data || data.length < FETCH_PAGE_SIZE) break;
@@ -166,18 +168,24 @@ export function leadDisplayName(lead) {
   return fromParts || lead.name || "(unnamed lead)";
 }
 
-const CE_BOOKED_STATUS = "case evaluation scheduled";
+const normLabel = (v) => (v == null ? "" : String(v).trim().toLowerCase());
 
-/**
- * True when a lead's Monday Status column reads "Case evaluation
- * scheduled" — the Leads-board source of truth for the Dashboard's "CE
- * booked" KPI. Not every scheduled case evaluation necessarily has a
- * matching crm_deals item yet, so this counts from the Leads board
- * directly rather than from the Deals board's group (see dealStats.js,
- * which covers the later funnel stages that ARE read from Deals groups).
- */
+// A lead counts as "CE booked" when it sits in the Lead Tracker's
+// "Case Evaluation Scheduled" board GROUP (the Kanban section the team drags a
+// lead into once a case evaluation is scheduled) — the Leads-board source of
+// truth for the Dashboard's "CE booked" KPI. (dealStats.js covers the later
+// funnel stages read from the Deals board's groups.)
+//
+// Counted by GROUP membership, regardless of the lead's Status value: once a
+// lead is in that group the Status column may read "Case Evaluation Scheduled",
+// "Booked", or anything else, and all of them count. The Status column is NOT a
+// reliable proxy here — only a few of the group's leads carry the matching
+// status, and some leads with that status sit in other groups entirely — so we
+// match on the board group the Monday sync stores as crm_leads.monday_group_title.
+const CE_BOOKED_GROUP = "case evaluation scheduled";
+
 export function isCeBookedLead(lead) {
-  return (lead.status || "").trim().toLowerCase() === CE_BOOKED_STATUS;
+  return normLabel(lead?.monday_group_title) === CE_BOOKED_GROUP;
 }
 
 // A Call Leads record (crm_calls, the Monday "Call Log Tracker" board) counts
